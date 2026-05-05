@@ -10,6 +10,20 @@ A Python desktop application that automatically detects and crops individual pho
 
 ---
 
+## Why this exists
+
+I found some old family albums over the Chinese New Year. The photos were all shot on film. Some of the people in them are gone. Some exist only in memory.
+
+There were no digital copies. I wanted to keep them.
+
+PhotoCrop does one thing: crop photos cleanly from scanned pages. No AI enhancement, no AI restoration. When you look at a blurry old photo and a face comes to mind, no AI can reproduce that. The face you remember is more real than any pixel.
+
+You can take the cropped photos and run them through AI restoration if you want — GPT is good at that. But this tool is just about cropping. If looking at the photo brings someone back to you, that's enough.
+
+The whole detection pipeline runs locally with offline models. Your photos never leave your machine, and nothing gets sent off for training. Your memories stay yours.
+
+---
+
 ## Features
 
 - **Multiple detection engines** — Traditional CV (edge detection + morphology), Enhanced CV, Combined detector, and YOLO-World zero-shot open-vocabulary detection
@@ -23,7 +37,7 @@ A Python desktop application that automatically detects and crops individual pho
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/PhotoCrop.git
+git clone https://github.com/Reyes957/PhotoCrop.git
 cd PhotoCrop
 pip install -r requirements.txt
 ```

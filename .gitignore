@@ -13,6 +13,7 @@ models/
 
 # === AI 辅助文件（内部文档，不公开）===
 AGENTS.md
+CLAUDE.md
 project_rules.md
 PHOTOCROP_MEMORY.md
 plan.md
