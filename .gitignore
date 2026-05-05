@@ -1,0 +1,50 @@
+# === 测试相关 ===
+test_output/
+test sample/
+
+# === 原始算法（已封装进 photocrop/engine/）===
+extract_photos_v3_final.py
+
+# === 模型文件（太大，不入仓库）===
+*.pt
+*.onnx
+*.bin
+models/
+
+# === AI 辅助文件（内部文档，不公开）===
+AGENTS.md
+project_rules.md
+PHOTOCROP_MEMORY.md
+plan.md
+architecture.md
+
+# === 内部测试/开发脚本 ===
+setup_and_test.sh
+test_yolo_comparison.py
+
+# === 系统文件 ===
+.DS_Store
+.obsidian/
+.codebuddy/
+Thumbs.db
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === 临时文件 ===
+*.tmp
+*.bak
+*.log
