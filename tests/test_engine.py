@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-v0.1.0 引擎测试脚本
+引擎测试脚本
 
 测试覆盖：
 - CropRect 坐标转换
@@ -9,14 +9,11 @@ v0.1.0 引擎测试脚本
 - IoU 去重
 - 旋转估计
 - Fallback 机制
-- Test sample PDF 完整流程
+
+运行方式：从项目根目录执行 python tests/test_engine.py
 """
 
-import os
 import sys
-
-# 确保可以导入 photocrop
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PIL import Image
 import numpy as np
@@ -29,8 +26,8 @@ from photocrop.engine.filters import (
     limit_count,
 )
 from photocrop.utils.iou import compute_iou
-from photocrop.engine.rotation import estimate_rotation_angle
-from photocrop.engine.detector import (
+from photocrop.engine.rotation_estimator import estimate_rotation_angle
+from photocrop.engine.cv_algorithm import (
     classify_scene,
     detect_photos_in_scene,
     extract_photos_from_page,
@@ -301,7 +298,7 @@ def run_all():
     FAIL = 0
 
     print("\n" + "="*60)
-    print("  PhotoCrop v0.1.0 — 引擎测试")
+    print("  PhotoCrop — 引擎测试")
     print("="*60)
 
     test_crop_rect()

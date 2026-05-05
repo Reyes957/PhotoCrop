@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from photocrop.engine.rotation import estimate_rotation_angle
+from photocrop.engine.rotation_estimator import estimate_rotation_angle
 from photocrop.utils.crop_rect import CropRect
 from photocrop.utils.rotation import to_opencv_angle
 

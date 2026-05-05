@@ -1,11 +1,15 @@
 """
-ModelDetector — 模型检测器（占位）
+ModelDetector — 模型检测器（通用占位）
 
-预留接口，用于接入：
-- 本地模型（YOLO、SAM 等）
-- 大模型视觉 API（GPT-4V、Claude Vision 等）
-
+通用的模型检测器接口，用于接入任意 ML 模型。
 当前为占位实现，返回空列表。
+
+已有的专用检测器：
+- YOLOWorldDetector（yolo_world_detector.py）— YOLO-World 零样本检测
+- CVDetector（cv_detector.py）— 传统 CV 算法
+
+如需接入新模型，建议优先考虑继承 BaseDetector 创建专用检测器，
+而非修改本文件。
 """
 
 from __future__ import annotations

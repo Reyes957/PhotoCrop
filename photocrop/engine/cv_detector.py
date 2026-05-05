@@ -12,7 +12,7 @@ from typing import List
 from PIL import Image
 
 from photocrop.engine.detector_base import BaseDetector
-from photocrop.engine.detector import extract_photos_from_page
+from photocrop.engine.cv_algorithm import extract_photos_from_page
 from photocrop.utils.crop_rect import CropRect
 
 

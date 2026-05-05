@@ -24,7 +24,7 @@ from photocrop.engine.filters import (
     limit_count,
     filter_extreme_aspect,
 )
-from photocrop.engine.rotation import estimate_rotation_angle
+from photocrop.engine.rotation_estimator import estimate_rotation_angle
 from photocrop.utils.crop_rect import CropRect
 
 

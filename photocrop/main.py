@@ -4,15 +4,15 @@ from __future__ import annotations
 PhotoCrop — 从扫描页面中检测并裁剪照片
 
 用法:
-    # CLI 模式（v0.1.0）
+    # CLI 模式
     python -m photocrop.main <image_path>
     python -m photocrop.main page.jpg --max-count 4
 
-    # GUI 模式（v0.2.0）
+    # GUI 模式
     python -m photocrop.main --gui
     python -m photocrop.main --gui page.jpg
 
-    # PDF 批量模式（v0.3.0）
+    # PDF 批量模式
     python -m photocrop.main --pdf album.pdf --output ./out/
 """
 
@@ -147,7 +147,8 @@ def run_gui(args) -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("PhotoCrop")
-    app.setApplicationVersion("0.2.0")
+    from photocrop import __version__
+    app.setApplicationVersion(__version__)
 
     window = MainWindow()
     window.show()
