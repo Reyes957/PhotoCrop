@@ -17,6 +17,7 @@ PhotoCrop — 从扫描页面中检测并裁剪照片
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -111,7 +112,7 @@ def run_cli(args) -> int:
 
     try:
         img = Image.open(args.image)
-    except Exception as e:
+    except (IOError, OSError, ValueError) as e:
         print(f"错误：无法打开图片 — {e}", file=sys.stderr)
         return 1
 
@@ -184,9 +185,11 @@ def run_pdf(args) -> int:
         return 1
 
     pdf_stem = args.pdf.stem
+    total_pages = len(pages)
     total_exported = 0
 
     for page_num, page_img in pages:
+        print(f"\r处理中: 第 {page_num + 1}/{total_pages} 页...", end="", flush=True)
         rects = detect_rectangles(
             page_img,
             detector=args.detector,
@@ -209,10 +212,10 @@ def run_pdf(args) -> int:
                     trim_white=not args.no_trim,
                 )
                 total_exported += 1
-            except Exception as e:
+            except (IOError, OSError, ValueError, RuntimeError) as e:
                 print(f"导出失败 {out_name}: {e}", file=sys.stderr)
 
-    print(f"完成: 共导出 {total_exported} 张照片到 {output_dir}")
+    print(f"\n完成: 共导出 {total_exported} 张照片到 {output_dir}")
     return 0
 
 
@@ -223,6 +226,11 @@ def run_pdf(args) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(name)s: %(message)s",
+    )
 
     if args.gui:
         return run_gui(args)

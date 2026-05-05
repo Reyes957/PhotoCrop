@@ -5,11 +5,10 @@ scipy>=1.10
 numpy>=1.23
 opencv-python>=4.8
 Pillow>=9.5
+platformdirs>=3.0
 
 # YOLO-World 零样本检测器（可选）
-# 安装方法：
-#   pip install ultralytics
-#   pip install git+https://github.com/ultralytics/CLIP.git
+# 安装方法：pip install -e ".[yolo]"
 # ultralytics>=8.1
 # torch>=2.0
 # torchvision>=0.15

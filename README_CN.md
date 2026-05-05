@@ -26,10 +26,13 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 
 ## 功能
 
-- **多种检测引擎** — 传统 CV（边缘检测 + 形态学）、增强 CV、组合检测器、YOLO-World 零样本开放词汇检测
+- **多种检测引擎** — 传统 CV（边缘检测 + 形态学）、增强 CV、组合检测器（IoU 投票融合）、YOLO-World 零样本开放词汇检测
 - **可插拔检测器架构** — 基于 ABC 抽象基类和工厂模式，可以随时切换检测器或自己写一个
 - **三种运行模式** — CLI 命令行（写脚本用）、GUI 图形界面（交互编辑）、PDF 批量模式（一键处理整本）
 - **智能导出** — 自动旋转矫正、去白边、支持多种输出格式
+- **撤销/重做** — Ctrl+Z / Ctrl+Shift+Z 支持裁剪框操作撤销
+- **键盘快捷键** — Ctrl+O（加载）、Ctrl+D（检测）、Ctrl+E（导出）、← →（翻页）
+- **用户配置** — 可选 `~/.config/photocrop/config.yaml` 持久化偏好设置
 - **参数可调** — 最大照片数、最小尺寸阈值、fallback 兜底策略等
 
 ---
@@ -37,16 +40,21 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 ## 安装
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/PhotoCrop.git
+git clone https://github.com/Reyes957/PhotoCrop.git
 cd PhotoCrop
-pip install -r requirements.txt
+pip install -e ".[gui]"
 ```
 
 如果要使用 YOLO-World 检测器（可选的零样本开放词汇检测）：
 
 ```bash
-pip install ultralytics
-pip install git+https://github.com/ultralytics/CLIP.git
+pip install -e ".[all]"
+```
+
+或者用 requirements.txt：
+
+```bash
+pip install -r requirements.txt
 ```
 
 ---
@@ -78,39 +86,55 @@ python -m photocrop.main --pdf album.pdf --output ./photos/
 ```bash
 python -m photocrop.main page.jpg --detector cv            # 默认：传统 CV 算法
 python -m photocrop.main page.jpg --detector enhanced-cv   # 增强 CV 管线
-python -m photocrop.main page.jpg --detector combined      # 多检测器并集
+python -m photocrop.main page.jpg --detector combined      # IoU 投票融合
 python -m photocrop.main page.jpg --detector yolo-world    # YOLO-World（需下载模型）
 ```
+
+### GUI 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| Ctrl+O | 加载图片/PDF |
+| Ctrl+D | 检测照片 |
+| Ctrl+E | 导出全部 |
+| Ctrl+Z | 撤销 |
+| Ctrl+Shift+Z / Ctrl+Y | 重做 |
+| ← → | 上/下一页 |
+| Delete / Backspace | 删除选中的裁剪框 |
 
 ---
 
 ## 架构
 
 ```
-main.py (CLI / --gui / --pdf)
+photocrop/
+  ├── main.py              CLI / --gui / --pdf 入口
+  ├── config.py            用户配置系统（~/.config/photocrop/config.yaml）
   │
-  ├── engine/          检测引擎
-  │   ├── detector_base.py   检测器抽象基类
-  │   ├── cv_detector.py     传统 CV（边缘检测 + 形态学 + 连通分量）
+  ├── engine/              检测引擎
+  │   ├── detector_base.py     检测器抽象基类
+  │   ├── cv_detector.py       传统 CV 封装
+  │   ├── cv_algorithm.py      核心 CV 算法（场景分类 + 照片检测）
   │   ├── enhanced_cv_detector.py
-  │   ├── combined_detector.py
-  │   ├── yolo_world_detector.py   YOLO-World 零样本检测
-  │   ├── model_detector.py        预留给视觉大模型 API 的接口
-  │   ├── core.py                  流程编排 + 工厂函数
-  │   ├── filters.py               小框过滤、IoU 去重、数量限制
-  │   └── rotation.py              旋转角度估算
+  │   ├── combined_detector.py IoU 投票融合
+  │   ├── yolo_world_detector.py  YOLO-World 零样本（异步加载）
+  │   ├── model_detector.py    预留给视觉大模型 API 的接口
+  │   ├── core.py              流程编排 + 工厂函数（带缓存）
+  │   ├── filters.py           小框过滤、IoU 去重、数量限制
+  │   └── rotation_estimator.py  旋转角度估算
   │
   ├── ui/              PySide6 图形界面
-  │   ├── main_window.py   工具栏 + 状态栏
-  │   ├── canvas.py        带交互裁剪框的画布
-  │   └── crop_item.py     可拖拽编辑的裁剪框
+  │   ├── main_window.py   工具栏 + 状态栏 + 快捷键
+  │   ├── canvas.py        带交互裁剪框的画布 + 撤销/重做
+  │   ├── crop_item.py     可拖拽编辑的裁剪框（旋转、手柄）
+  │   └── undo_manager.py  撤销/重做状态管理
   │
   ├── export/          导出层
   │   ├── cropper.py      裁剪 → 旋转 → 去白边 → 保存
   │   └── pdf_reader.py   PDF → PIL Image 转换
   │
   └── utils/           工具层
-      ├── crop_rect.py    CropRect 数据结构
+      ├── crop_rect.py    CropRect 数据结构（中心坐标系）
       ├── iou.py          IoU 计算
       └── rotation.py     角度归一化
 ```
@@ -138,10 +162,11 @@ rects = detect_rectangles(img, detector=MyDetector())
 ## 依赖
 
 - Python 3.9+
-- PySide6 >= 6.5
+- PySide6 >= 6.5（GUI）
 - PyMuPDF >= 1.23
-- OpenCV >= 4.8
+- OpenCV >= 4.7
 - NumPy、SciPy、Pillow
+- platformdirs >= 3.0
 - （可选）Ultralytics、PyTorch（YOLO-World 需要）
 
 ---

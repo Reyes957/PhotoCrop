@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "photocrop"
+version = "0.4.0"
+description = "从扫描 PDF 相册页面中自动检测照片矩形，支持手动微调，批量裁剪导出"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+dependencies = [
+    "Pillow>=9.0",
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "PyMuPDF>=1.23",
+    "opencv-python>=4.7",
+    "platformdirs>=3.0",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.5"]
+yolo = [
+    "ultralytics>=8.1",
+    "torch>=2.0",
+    "torchvision>=0.15",
+]
+all = ["photocrop[gui,yolo]"]
+
+[project.scripts]
+photocrop = "photocrop.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Reyes957/PhotoCrop"
+Repository = "https://github.com/Reyes957/PhotoCrop"
+Issues = "https://github.com/Reyes957/PhotoCrop/issues"
+
+[tool.setuptools.packages.find]
+include = ["photocrop*"]
+
+# ============================================================
+# Ruff — 代码格式化 + lint
+# ============================================================
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["photocrop"]
+
+# ============================================================
+# Mypy — 类型检查
+# ============================================================
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = false

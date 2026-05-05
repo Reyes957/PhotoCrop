@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from photocrop.utils.crop_rect import CropRect
+from photocrop.utils.rotation import normalize_angle
 
 
 # ============================================================
@@ -101,6 +102,9 @@ class CropItem(QGraphicsRectItem):
         # 交互设置
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsToShape, True)
+        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
         # 从 CropRect 同步位置
@@ -141,6 +145,15 @@ class CropItem(QGraphicsRectItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         is_selected = self.isSelected()
 
+        # 应用旋转变换（围绕裁剪框中心）
+        painter.save()
+        angle = self._crop_rect.rotation_angle
+        if angle != 0:
+            center = rect.center()
+            painter.translate(center)
+            painter.rotate(-angle)
+            painter.translate(-center)
+
         # 半透明蓝色填充（选中时）
         if is_selected:
             painter.setBrush(QBrush(APPLE_BLUE_LIGHT))
@@ -156,9 +169,11 @@ class CropItem(QGraphicsRectItem):
         painter.setPen(pen)
         painter.drawRect(rect)
 
-        # 选中时绘制手柄
+        # 选中时绘制手柄（在旋转坐标系内）
         if is_selected:
             self._paint_handles(painter, rect)
+
+        painter.restore()
 
     def _paint_handles(self, painter: QPainter, rect: QRectF) -> None:
         hs = HANDLE_SIZE
@@ -326,13 +341,7 @@ class CropItem(QGraphicsRectItem):
             # 转换为"从 12 点钟方向顺时针"的角度
             # atan2 的 0° 在 3 点钟方向，顺时针为正
             # 我们要的是从 12 点钟方向顺时针
-            rotation = 90.0 - angle_deg
-
-            # 规范化到 [-180, 180]
-            while rotation > 180:
-                rotation -= 360
-            while rotation < -180:
-                rotation += 360
+            rotation = normalize_angle(90.0 - angle_deg)
 
             # 吸附到 0°, 90°, -90°, 180°（容差 ±15°）
             snap_angles = [0.0, 90.0, -90.0, 180.0]
@@ -342,8 +351,7 @@ class CropItem(QGraphicsRectItem):
                     break
 
             self._crop_rect.rotation_angle = rotation
-            if self._on_changed:
-                self._on_changed()
+            self.update()  # 触发重绘，但不触发 _on_changed 信号风暴
             event.accept()
             return
         else:
@@ -365,11 +373,13 @@ class CropItem(QGraphicsRectItem):
 
         self.setRect(new_rect)
         self._sync_to_rect()
-        if self._on_changed:
-            self._on_changed()
+        self.update()  # 视觉重绘，_on_changed 延迟到 release 时触发
         event.accept()
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        # 拖动结束，一次性触发变更回调（避免拖动期间信号风暴）
+        if self._drag_handle != HandlePosition.NONE and self._on_changed:
+            self._on_changed()
         self._drag_handle = HandlePosition.NONE
         super().mouseReleaseEvent(event)
 

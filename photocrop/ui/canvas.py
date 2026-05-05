@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from photocrop.engine.core import detect_rectangles
 from photocrop.ui.crop_item import CropItem, HandlePosition
+from photocrop.ui.undo_manager import UndoManager
 from photocrop.utils.crop_rect import CropRect
 
 
@@ -58,6 +59,9 @@ class CropCanvas(QGraphicsView):
         self._source_path: Optional[Path] = None
         self._crop_items: List[CropItem] = []
 
+        # 撤销/重做
+        self._undo_manager = UndoManager()
+
         # PDF 页面管理
         self._pdf_pages: List[Image.Image] = []
         self._current_page: int = 0
@@ -66,6 +70,7 @@ class CropCanvas(QGraphicsView):
         self._drawing = False
         self._draw_start = QPointF()
         self._temp_rect = None
+        self._min_drag_size = 30  # 最小拖动距离（像素），防止手抖误触
 
         # 画布外观
         self.setBackgroundBrush(QBrush(QColor("#1d1d1f")))
@@ -74,6 +79,11 @@ class CropCanvas(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+
+        # 解决拖动裁剪框残影：全视口更新模式
+        self.setViewportUpdateMode(
+            QGraphicsView.ViewportUpdateMode.FullViewportUpdate
+        )
 
     @property
     def source_image(self) -> Optional[Image.Image]:
@@ -160,6 +170,10 @@ class CropCanvas(QGraphicsView):
             self._scene.removeItem(item)
         self._crop_items.clear()
 
+        # 重置撤销历史，推入空状态作为初始帧
+        self._undo_manager.clear()
+        self._undo_manager.push_state([])
+
         # 清除旧图片
         if self._pixmap_item:
             self._scene.removeItem(self._pixmap_item)
@@ -209,6 +223,29 @@ class CropCanvas(QGraphicsView):
             qimage = QImage(data, img.width, img.height, QImage.Format.Format_RGB888)
         return qimage.copy()
 
+    # ---- 撤销/重做 ----
+
+    def undo(self) -> None:
+        """撤销上一个操作"""
+        rects = self._undo_manager.undo()
+        if rects is not None:
+            self._restore_rects(rects)
+
+    def redo(self) -> None:
+        """重做上一个撤销的操作"""
+        rects = self._undo_manager.redo()
+        if rects is not None:
+            self._restore_rects(rects)
+
+    def _restore_rects(self, rects: List[CropRect]) -> None:
+        """用给定的 CropRect 列表替换当前所有裁剪框"""
+        for item in self._crop_items[:]:
+            self._scene.removeItem(item)
+        self._crop_items.clear()
+        for rect in rects:
+            self._add_crop_item(rect)
+        self.rects_changed.emit()
+
     # ---- 检测 ----
 
     def detect(self, **kwargs) -> int:
@@ -241,6 +278,7 @@ class CropCanvas(QGraphicsView):
 
     def add_crop_rect(self, rect: CropRect) -> CropItem:
         item = self._add_crop_item(rect)
+        self._push_undo_state()
         self.rects_changed.emit()
         return item
 
@@ -276,13 +314,19 @@ class CropCanvas(QGraphicsView):
         self.rects_changed.emit()
 
     def _on_crop_changed(self) -> None:
+        self._push_undo_state()
         self.rects_changed.emit()
 
     def _on_crop_deleted(self, item: CropItem) -> None:
         """裁剪框被删除时的回调（由 CropItem 的 keyPressEvent 触发）"""
         if item in self._crop_items:
             self._crop_items.remove(item)
+        self._push_undo_state()
         self.rects_changed.emit()
+
+    def _push_undo_state(self) -> None:
+        """将当前裁剪框状态推入撤销栈"""
+        self._undo_manager.push_state(self.crop_rects)
 
     # ---- 框选新建 ----
 
@@ -291,41 +335,55 @@ class CropCanvas(QGraphicsView):
                 and not self._item_at(event.position())):
             self._drawing = True
             self._draw_start = self.mapToScene(event.position().toPoint())
-            self._temp_rect = self._scene.addRect(
-                QRectF(self._draw_start, self._draw_start),
-                QPen(QColor("#0071e3"), 1.5, Qt.PenStyle.DashLine),
-                QBrush(QColor(0, 113, 227, 30)),
-            )
-            self._temp_rect.setZValue(1000)
+            # 延迟创建临时矩形 — 只有真正拖动才显示
+            self._temp_rect = None
             event.accept()
         else:
             super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:
-        if self._drawing and self._temp_rect:
+        if self._drawing:
             end = self.mapToScene(event.position().toPoint())
-            self._temp_rect.setRect(QRectF(self._draw_start, end).normalized())
+            # 检查是否超过最小拖动距离
+            if self._temp_rect is None:
+                dx = abs(end.x() - self._draw_start.x())
+                dy = abs(end.y() - self._draw_start.y())
+                if dx < self._min_drag_size and dy < self._min_drag_size:
+                    return  # 移动太小，忽略
+                # 超过阈值，创建临时矩形
+                self._temp_rect = self._scene.addRect(
+                    QRectF(self._draw_start, end).normalized(),
+                    QPen(QColor("#0071e3"), 1.5, Qt.PenStyle.DashLine),
+                    QBrush(QColor(0, 113, 227, 30)),
+                )
+                self._temp_rect.setZValue(1000)
+            else:
+                self._temp_rect.setRect(QRectF(self._draw_start, end).normalized())
             event.accept()
         else:
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:
-        if self._drawing and self._temp_rect:
+        if self._drawing:
             self._drawing = False
-            end = self.mapToScene(event.position().toPoint())
-            rect = QRectF(self._draw_start, end).normalized()
 
-            if rect.width() > 10 and rect.height() > 10:
-                crop_rect = CropRect.from_pixel_rect(
-                    rect.left(), rect.top(),
-                    rect.right(), rect.bottom(),
-                )
-                crop_rect.source_type = "manual"
-                self._add_crop_item(crop_rect)
-                self.rects_changed.emit()
+            if self._temp_rect is not None:
+                # 用户确实拖动了足够距离
+                end = self.mapToScene(event.position().toPoint())
+                rect = QRectF(self._draw_start, end).normalized()
 
-            self._scene.removeItem(self._temp_rect)
-            self._temp_rect = None
+                if rect.width() > self._min_drag_size and rect.height() > self._min_drag_size:
+                    crop_rect = CropRect.from_pixel_rect(
+                        rect.left(), rect.top(),
+                        rect.right(), rect.bottom(),
+                    )
+                    crop_rect.source_type = "manual"
+                    self._add_crop_item(crop_rect)
+                    self.rects_changed.emit()
+
+                self._scene.removeItem(self._temp_rect)
+                self._temp_rect = None
+
             event.accept()
         else:
             super().mouseReleaseEvent(event)

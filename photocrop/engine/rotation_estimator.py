@@ -298,6 +298,6 @@ def estimate_batch(
             else:
                 angle = estimate_rotation_angle(img)
             angles.append(angle)
-        except Exception:
+        except (ValueError, RuntimeError, OSError):
             angles.append(default_angle)
     return angles

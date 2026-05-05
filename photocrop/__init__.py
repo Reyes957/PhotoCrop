@@ -6,7 +6,7 @@ v0.2.0: UI 交互 — PySide6 画布 + 可交互裁剪框
 v0.3.0: 导出功能 — 裁剪 + 旋转 + 去白边 + PDF 读取
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from photocrop.utils.crop_rect import CropRect
 

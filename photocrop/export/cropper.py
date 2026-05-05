@@ -73,8 +73,8 @@ def export_photo(
             angle = estimate_rotation_angle(cropped)
             if angle != 0.0:
                 cropped = _apply_rotation(cropped, angle)
-        except Exception:
-            pass  # 自动旋转失败时跳过
+        except (ValueError, RuntimeError, OSError):
+            pass  # 自动旋转失败时跳过（不影响导出）
 
     # ---- 步骤 4: 去白边 ----
     if trim_white:

@@ -13,8 +13,9 @@ YOLOWorldDetector — YOLO-World 零样本检测器
 
 from __future__ import annotations
 
+import logging
 import os
-import sys
+import threading
 from typing import List, Optional
 
 from PIL import Image
@@ -25,6 +26,7 @@ os.environ["ULTRALYTICS_AUTO_UPDATE"] = "0"
 from photocrop.engine.detector_base import BaseDetector
 from photocrop.utils.crop_rect import CropRect
 
+logger = logging.getLogger(__name__)
 
 # 默认文本提示
 DEFAULT_PROMPTS = ["photograph", "printed photo"]
@@ -33,11 +35,25 @@ DEFAULT_PROMPTS = ["photograph", "printed photo"]
 DEFAULT_MODEL_SIZE = "x"
 
 
+def _get_cache_dir() -> str:
+    """获取模型缓存目录（使用 platformdirs 或 fallback）"""
+    try:
+        from platformdirs import user_cache_dir
+        cache = user_cache_dir("photocrop")
+    except ImportError:
+        cache = os.path.join(os.path.expanduser("~"), ".cache", "photocrop")
+    os.makedirs(cache, exist_ok=True)
+    return cache
+
+
 class YOLOWorldDetector(BaseDetector):
     """YOLO-World 零样本开放词汇检测器
 
     使用文本提示（如 "photograph"）来检测图像中的照片区域，
-    无需任何训练数据。首次加载模型可能需要几十秒。
+    需要任何训练数据。首次加载模型可能需要几十秒。
+
+    支持异步预加载：调用 `load_async()` 在后台线程加载模型，
+    避免阻塞 UI。`detect()` 会等待加载完成。
 
     Example:
         detector = YOLOWorldDetector()
@@ -48,6 +64,12 @@ class YOLOWorldDetector(BaseDetector):
 
         # 使用更小的模型（更快但精度略低）
         detector = YOLOWorldDetector(model_size="s")
+
+        # 异步预加载（不阻塞）
+        detector = YOLOWorldDetector()
+        detector.load_async()
+        # ... 用户做其他操作 ...
+        rects = detector.detect(page_img)  # 如果加载完成则立即使用
     """
 
     def __init__(
@@ -61,6 +83,8 @@ class YOLOWorldDetector(BaseDetector):
         self._confidence = confidence
         self._model = None
         self._device = None
+        self._loading = False
+        self._load_event = threading.Event()
 
     def _detect_device(self) -> str:
         """自动检测最佳推理设备"""
@@ -75,8 +99,8 @@ class YOLOWorldDetector(BaseDetector):
         except ImportError:
             return "cpu"
 
-    def _load_model(self):
-        """延迟加载模型（首次调用时）"""
+    def _load_model_sync(self):
+        """同步加载模型（内部方法）"""
         if self._model is not None:
             return
 
@@ -97,10 +121,9 @@ class YOLOWorldDetector(BaseDetector):
             import clip  # noqa: F401
         except ImportError:
             try:
-                # 尝试通过 ultralytics.utils.checks 自动安装
                 from ultralytics.utils.checks import check_requirements
                 check_requirements("git+https://github.com/ultralytics/CLIP.git")
-            except Exception:
+            except (ImportError, Exception):
                 raise ImportError(
                     "CLIP 未安装（YOLO-World 依赖）。请运行:\n"
                     "  pip install git+https://github.com/ultralytics/CLIP.git --user"
@@ -118,18 +141,51 @@ class YOLOWorldDetector(BaseDetector):
 
         if os.path.exists(local_model):
             model_path = local_model
-            print(f"[YOLO-World] 使用本地模型: {model_path}")
+            logger.info("使用本地模型: %s", model_path)
         else:
-            model_path = f"yolov8{self._model_size}-worldv2.pt"
-            print(f"[YOLO-World] 本地模型不存在，将自动下载到: {os.getcwd()}")
+            # 使用 platformdirs 缓存目录
+            cache_dir = _get_cache_dir()
+            cached_model = os.path.join(
+                cache_dir, f"yolov8{self._model_size}-worldv2.pt"
+            )
+            if os.path.exists(cached_model):
+                model_path = cached_model
+                logger.info("使用缓存模型: %s", model_path)
+            else:
+                model_path = f"yolov8{self._model_size}-worldv2.pt"
+                logger.info("本地模型不存在，将自动下载: %s", model_path)
 
         # 加载模型
         self._device = self._detect_device()
-        print(f"[YOLO-World] 推理设备: {self._device}")
+        logger.info("推理设备: %s", self._device)
 
         self._model = YOLO(model_path)
         self._model.set_classes(self._prompts)
-        print(f"[YOLO-World] 模型加载完成，提示词: {self._prompts}")
+        logger.info("模型加载完成，提示词: %s", self._prompts)
+        self._load_event.set()
+
+    def _load_model(self):
+        """加载模型（如果异步加载中则等待完成）"""
+        if self._model is not None:
+            return
+        if self._loading:
+            # 异步加载进行中，等待完成
+            self._load_event.wait()
+            if self._model is not None:
+                return
+        self._load_model_sync()
+
+    def load_async(self) -> None:
+        """在后台线程中预加载模型（不阻塞调用者）
+
+        调用后 `detect()` 会自动等待加载完成。
+        重复调用是安全的（已加载则跳过）。
+        """
+        if self._model is not None or self._loading:
+            return
+        self._loading = True
+        thread = threading.Thread(target=self._load_model_sync, daemon=True)
+        thread.start()
 
     @property
     def name(self) -> str:

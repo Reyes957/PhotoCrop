@@ -40,11 +40,14 @@ DEFAULT_MAX_COUNT = 4
 
 
 # ============================================================
-# 检测器工厂
+# 检测器工厂（带模块级缓存）
 # ============================================================
 
+_detector_cache: dict[str, BaseDetector] = {}
+
+
 def get_detector(detector: Union[str, BaseDetector, None] = None) -> BaseDetector:
-    """获取检测器实例
+    """获取检测器实例（字符串标识命中缓存，避免重复导入）
 
     Args:
         detector: 检测器标识
@@ -56,25 +59,34 @@ def get_detector(detector: Union[str, BaseDetector, None] = None) -> BaseDetecto
     Returns:
         BaseDetector 实例
     """
-    if detector is None or detector == "cv":
-        from photocrop.engine.cv_detector import CVDetector
-        return CVDetector()
-    elif detector == "enhanced-cv":
-        from photocrop.engine.enhanced_cv_detector import EnhancedCVDetector
-        return EnhancedCVDetector()
-    elif detector == "combined":
-        from photocrop.engine.combined_detector import CombinedDetector
-        return CombinedDetector()
-    elif detector == "yolo-world":
-        from photocrop.engine.yolo_world_detector import YOLOWorldDetector
-        return YOLOWorldDetector()
-    elif detector == "model":
-        from photocrop.engine.model_detector import ModelDetector
-        return ModelDetector()
-    elif isinstance(detector, BaseDetector):
+    if isinstance(detector, BaseDetector):
         return detector
+
+    key = detector or "cv"
+
+    if key in _detector_cache:
+        return _detector_cache[key]
+
+    if key == "cv":
+        from photocrop.engine.cv_detector import CVDetector
+        instance = CVDetector()
+    elif key == "enhanced-cv":
+        from photocrop.engine.enhanced_cv_detector import EnhancedCVDetector
+        instance = EnhancedCVDetector()
+    elif key == "combined":
+        from photocrop.engine.combined_detector import CombinedDetector
+        instance = CombinedDetector()
+    elif key == "yolo-world":
+        from photocrop.engine.yolo_world_detector import YOLOWorldDetector
+        instance = YOLOWorldDetector()
+    elif key == "model":
+        from photocrop.engine.model_detector import ModelDetector
+        instance = ModelDetector()
     else:
         raise ValueError(f"未知的检测器: {detector}")
+
+    _detector_cache[key] = instance
+    return instance
 
 
 # ============================================================
@@ -139,7 +151,7 @@ def detect_rectangles(
                 crop_img = page_img.crop(rect.to_pixel_tuple())
                 angle = estimate_rotation_angle(crop_img)
                 rect.rotation_angle = angle
-            except Exception:
+            except (ValueError, RuntimeError, OSError):
                 rect.rotation_angle = 0.0
 
     # ---- 步骤 3: 过滤小框 ----

@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Optional
 
 from PIL import Image
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QAction, QColor, QFont, QPalette, QIcon
+from PySide6.QtCore import Qt, QSize, QTimer
+from PySide6.QtGui import QAction, QColor, QFont, QPalette, QIcon, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -235,10 +235,16 @@ class MainWindow(QMainWindow):
 
         self.setStyleSheet(STYLE_SHEET)
 
+        # 防抖定时器 — 避免 rects_changed 信号风暴导致按钮闪烁
+        self._update_timer = QTimer(self)
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self._update_button_states)
+
         self._setup_ui()
         self._setup_toolbar()
         self._setup_statusbar()
         self._connect_signals()
+        self._setup_shortcuts()
         self._update_button_states()
 
     def _setup_ui(self) -> None:
@@ -263,8 +269,8 @@ class MainWindow(QMainWindow):
         page_layout.setSpacing(6)
 
         self._btn_prev_page = QPushButton("◀")
-        self._btn_prev_page.setFixedSize(28, 28)
-        self._btn_prev_page.setToolTip("上一页")
+        self._btn_prev_page.setFixedSize(32, 32)
+        self._btn_prev_page.setToolTip("上一页（←）")
         page_layout.addWidget(self._btn_prev_page)
 
         self._lbl_page_info = QLabel("1 / 1")
@@ -274,8 +280,8 @@ class MainWindow(QMainWindow):
         page_layout.addWidget(self._lbl_page_info)
 
         self._btn_next_page = QPushButton("▶")
-        self._btn_next_page.setFixedSize(28, 28)
-        self._btn_next_page.setToolTip("下一页")
+        self._btn_next_page.setFixedSize(32, 32)
+        self._btn_next_page.setToolTip("下一页（→）")
         page_layout.addWidget(self._btn_next_page)
 
         toolbar.addWidget(self._page_nav_widget)
@@ -310,7 +316,7 @@ class MainWindow(QMainWindow):
 
         # 清除
         self._btn_clear = QPushButton("清除裁剪框")
-        self._btn_clear.setProperty("secondary", True)
+        self._btn_clear.setProperty("secondary", "true")
         self._btn_clear.setEnabled(False)
         toolbar.addWidget(self._btn_clear)
 
@@ -349,6 +355,17 @@ class MainWindow(QMainWindow):
         self._canvas.detection_done.connect(self._on_detection_done)
         self._canvas.rects_changed.connect(self._on_rects_changed)
         self._canvas.page_changed.connect(self._on_page_changed)
+
+    def _setup_shortcuts(self) -> None:
+        """设置键盘快捷键"""
+        QShortcut(QKeySequence("Ctrl+O"), self, activated=self._on_load)
+        QShortcut(QKeySequence("Ctrl+D"), self, activated=self._on_detect)
+        QShortcut(QKeySequence("Ctrl+E"), self, activated=self._on_export)
+        QShortcut(QKeySequence("Left"), self, activated=self._on_prev_page)
+        QShortcut(QKeySequence("Right"), self, activated=self._on_next_page)
+        QShortcut(QKeySequence("Ctrl+Z"), self, activated=self._on_undo)
+        QShortcut(QKeySequence("Ctrl+Shift+Z"), self, activated=self._on_redo)
+        QShortcut(QKeySequence("Ctrl+Y"), self, activated=self._on_redo)
 
     @property
     def _selected_detector(self) -> str:
@@ -460,6 +477,12 @@ class MainWindow(QMainWindow):
     def _on_next_page(self) -> None:
         self._canvas.next_page()
 
+    def _on_undo(self) -> None:
+        self._canvas.undo()
+
+    def _on_redo(self) -> None:
+        self._canvas.redo()
+
     def _on_image_loaded(self) -> None:
         self._update_button_states()
         w, h = self._canvas.source_image.size
@@ -477,7 +500,8 @@ class MainWindow(QMainWindow):
         self._update_button_states()
 
     def _on_rects_changed(self) -> None:
-        self._update_button_states()
+        # 防抖：50ms 内多次信号只触发一次按钮状态刷新
+        self._update_timer.start(50)
         count = len(self._canvas.crop_rects)
         if count > 0:
             self._lbl_info.setText(f"{count} 个裁剪框")

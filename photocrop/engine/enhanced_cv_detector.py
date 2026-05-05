@@ -12,6 +12,7 @@ EnhancedCVDetector — 增强版 CV 检测器
 
 from __future__ import annotations
 
+import warnings
 from typing import List, Tuple
 
 import cv2
@@ -33,6 +34,12 @@ class EnhancedCVDetector(BaseDetector):
         min_rectangularity: float = 0.7,
         aspect_ratio_range: Tuple[float, float] = (0.2, 5.0),
     ):
+        warnings.warn(
+            "EnhancedCVDetector 已废弃，检测效果不如原始 CVDetector。"
+            "请使用 CVDetector 或 YOLOWorldDetector。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.min_area_ratio = min_area_ratio
         self.max_area_ratio = max_area_ratio
         self.min_rectangularity = min_rectangularity
