@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.5.0 — 多图像管理 + 属性面板 + 批量导出 + Single View + 模板系统（2026-05-06）
+
+### 阶段一：核心体验
+
+- **UndoManager 序列化** — 新增 `serialize()` / `deserialize()` 方法，支持多图 session 状态保存/恢复
+- **多图像管理** — 新增 `session.py`（ImageSession 数据类）+ `image_list_panel.py`（左侧 220px 图像列表面板，缩略图 + 文件名 + 裁剪计数 + 右键菜单）
+- **裁剪框属性面板** — 新增 `crop_options_panel.py`（Width/Height/X/Y/Rotation 五个 SpinBox，实时更新裁剪框，editingFinished 推入撤销栈）
+- **提取预览面板** — 新增 `extracted_images_panel.py`（2 列网格预览，LRU 缓存，点击选中/删除，折叠头）
+- **批量导出对话框** — 新增 `export_dialog.py`（输出目录/格式 JPEG-PNG-TIFF/质量/最大宽高/文件名模板/自动旋转/去白边）；`cropper.py` 新增 `export_photo_to_memory()`、`_resize_if_needed()`、TIFF 支持
+- **Single View** — 新增 `single_view_panel.py`（双栏布局：左原图缩略 + 右提取大图，页码导航）；`main_window.py` 使用 QStackedWidget 切换 Grid/Single 视图
+- **键盘快捷键扩展** — `canvas.py` 新增 Tab/Shift+Tab 循环选中、Ctrl+A 全选、Ctrl+Click 多选、Esc 取消选中
+
+### 阶段二：交互增强
+
+- **Sync Crop(s)** — `canvas.py` 新增 `sync_selected_crops()`，将最后选中的裁剪框 width/height/rotation 同步到其他选中框
+- **Transform 翻转** — `canvas.py` 新增 `flip_horizontal()` / `flip_vertical()`，以原图中心线翻转坐标
+- **宽高比锁定** — `crop_item.py` 新增 `aspect_ratio_lock` 属性 + 拖拽手柄时保持比例；`crop_options_panel.py` 新增 Aspect Ratio 下拉框 (Free/Original/1:1/3:2/4:3/16:9)
+- **裁剪框浮动工具栏** — `crop_item.py` 选中时显示 ⛶查看 / 📋复制 / ✕删除 三个按钮，hover 高亮
+
+### 阶段三：高级功能
+
+- **模板系统** — 新增 `template_manager.py`，百分比坐标存储，跨图片复用，`~/.config/photocrop/templates.json`
+- **TIFF 导出** — `cropper.py` `_save_image()` 增加 TIFF LZW 压缩支持
+- **EXIF 写入** — `cropper.py` 新增 `write_exif_metadata()`，支持 Title/Date/Comment/Tags，仅 JPEG/TIFF
+- **export_photo_to_memory** — `cropper.py` 新增内存导出函数，用于预览面板和 Single View
+
+### Bug 修复
+
+- **QImage bytesPerLine 缺失** — 4 个文件的 `_pil_to_qimage` / `_pil_to_pixmap` 未显式指定 bytesPerLine，大图显示对角线条纹。修复：显式传入 `width * bytes_per_pixel`
+- **CropOptionsPanel removeRow 删 C++ 对象** — `form_layout.removeRow()` 删除已添加的 QLabel 导致 RuntimeError。修复：先构建完整 widget 再 addRow
+
+---
+
 ## v0.4.0 — UI 体验 + 工程化基础设施 + 新功能（2026-05-05）
 
 ### P0 — 严重体验问题修复

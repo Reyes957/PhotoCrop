@@ -16,10 +16,11 @@ from typing import Optional
 
 from PIL import Image
 from PySide6.QtCore import Qt, QSize, QTimer
-from PySide6.QtGui import QAction, QColor, QFont, QPalette, QIcon, QShortcut, QKeySequence
+from PySide6.QtGui import QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -27,17 +28,23 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QStackedWidget,
     QStatusBar,
     QToolBar,
     QVBoxLayout,
     QWidget,
     QSizePolicy,
-    QFrame,
 )
 
 from photocrop.export.cropper import export_photo
 from photocrop.ui.canvas import CropCanvas
 from photocrop.ui.crop_item import CropItem
+from photocrop.ui.image_list_panel import ImageListPanel
+from photocrop.ui.crop_options_panel import CropOptionsPanel
+from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
+from photocrop.ui.single_view_panel import SingleViewPanel
+from photocrop.ui.export_dialog import ExportDialog
+from photocrop.ui.session import ImageSession
 
 
 # ============================================================
@@ -50,6 +57,7 @@ APPLE_BLUE_PRESSED = "#005bb5"
 DARK_BG = "#1d1d1f"
 LIGHT_BG = "#f5f5f7"
 WHITE = "#ffffff"
+TEXT_PRIMARY = "#f5f5f7"
 TEXT_DARK = "#1d1d1f"
 TEXT_SECONDARY = "rgba(0,0,0,0.48)"
 SEPARATOR = "rgba(0,0,0,0.1)"
@@ -235,6 +243,10 @@ class MainWindow(QMainWindow):
 
         self.setStyleSheet(STYLE_SHEET)
 
+        # 多图像会话管理
+        self._sessions: dict = {}       # key=path_str → ImageSession
+        self._current_key: Optional[str] = None
+
         # 防抖定时器 — 避免 rects_changed 信号风暴导致按钮闪烁
         self._update_timer = QTimer(self)
         self._update_timer.setSingleShot(True)
@@ -248,8 +260,106 @@ class MainWindow(QMainWindow):
         self._update_button_states()
 
     def _setup_ui(self) -> None:
+        # 外层容器: 上部内容 + 底部按钮栏
+        outer = QWidget()
+        outer_layout = QVBoxLayout(outer)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        # 上部: 左侧图像列表 + 中间画布/单视图 + 右侧面板
+        content = QWidget()
+        content_layout = QHBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+
+        self._image_list_panel = ImageListPanel()
+        content_layout.addWidget(self._image_list_panel)
+
+        # 中间: QStackedWidget 切换 Canvas / SingleView
+        self._view_stack = QStackedWidget()
+
         self._canvas = CropCanvas(self)
-        self.setCentralWidget(self._canvas)
+        self._view_stack.addWidget(self._canvas)  # index 0 = Grid View
+
+        self._single_view = SingleViewPanel()
+        self._view_stack.addWidget(self._single_view)  # index 1 = Single View
+
+        content_layout.addWidget(self._view_stack, 1)
+
+        # 右侧面板: CropOptions + ExtractedImages
+        right_panel = QWidget()
+        right_panel.setFixedWidth(220)
+        right_panel.setStyleSheet("background-color: #2c2c2e;")
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        self._crop_options_panel = CropOptionsPanel()
+        right_layout.addWidget(self._crop_options_panel)
+
+        self._extracted_panel = ExtractedImagesPanel()
+        right_layout.addWidget(self._extracted_panel, 1)
+
+        content_layout.addWidget(right_panel)
+
+        outer_layout.addWidget(content, 1)
+
+        # 底部按钮栏
+        bottom_bar = QWidget()
+        bottom_bar.setFixedHeight(44)
+        bottom_bar.setStyleSheet("background-color: #2c2c2e;")
+        bottom_layout = QHBoxLayout(bottom_bar)
+        bottom_layout.setContentsMargins(10, 6, 10, 6)
+        bottom_layout.setSpacing(8)
+
+        # Grid/Single 切换按钮组
+        self._btn_grid = QPushButton("Grid View")
+        self._btn_grid.setCheckable(True)
+        self._btn_grid.setChecked(True)
+        self._btn_grid.setFixedWidth(80)
+        self._btn_grid.setStyleSheet(self._view_toggle_style(True))
+        self._btn_grid.clicked.connect(lambda: self._switch_view(0))
+        bottom_layout.addWidget(self._btn_grid)
+
+        self._btn_single = QPushButton("Single View")
+        self._btn_single.setCheckable(True)
+        self._btn_single.setFixedWidth(80)
+        self._btn_single.setStyleSheet(self._view_toggle_style(False))
+        self._btn_single.clicked.connect(lambda: self._switch_view(1))
+        bottom_layout.addWidget(self._btn_single)
+
+        bottom_layout.addStretch()
+
+        # 导出按钮 (也放在底部)
+        self._btn_export_page = QPushButton("导出当前页")
+        self._btn_export_page.setProperty("secondary", "true")
+        self._btn_export_page.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {APPLE_BLUE};
+                border: 1px solid {APPLE_BLUE};
+                border-radius: 6px;
+                padding: 6px 16px;
+                font-family: {FONT_BODY};
+                font-size: 12px;
+                min-height: 24px;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(0, 113, 227, 0.1);
+            }}
+            QPushButton:disabled {{
+                color: rgba(255,255,255,0.3);
+                border-color: rgba(255,255,255,0.15);
+            }}
+        """)
+        self._btn_export_page.clicked.connect(self._on_export)
+        bottom_layout.addWidget(self._btn_export_page)
+
+        outer_layout.addWidget(bottom_bar)
+
+        self.setCentralWidget(outer)
+
+        self._view_mode = 0  # 0=Grid, 1=Single
 
     def _setup_toolbar(self) -> None:
         toolbar = QToolBar("工具栏")
@@ -355,6 +465,26 @@ class MainWindow(QMainWindow):
         self._canvas.detection_done.connect(self._on_detection_done)
         self._canvas.rects_changed.connect(self._on_rects_changed)
         self._canvas.page_changed.connect(self._on_page_changed)
+        self._canvas.selection_changed.connect(self._on_selection_changed)
+        self._canvas.view_single_requested.connect(self._on_view_single_requested)
+
+        # CropOptionsPanel 信号
+        self._crop_options_panel.rect_changed.connect(self._on_crop_options_changed)
+        self._crop_options_panel.editing_finished.connect(self._on_crop_options_finished)
+        self._crop_options_panel.aspect_ratio_changed.connect(self._on_aspect_ratio_changed)
+
+        # ExtractedImagesPanel 信号
+        self._extracted_panel.crop_selected.connect(self._on_extracted_crop_selected)
+        self._extracted_panel.crop_delete_requested.connect(self._on_extracted_crop_delete)
+
+        # SingleViewPanel 信号
+        self._single_view.exit_requested.connect(lambda: self._switch_view(0))
+        self._single_view.selection_changed.connect(self._on_single_view_selection)
+
+        # 图像列表面板信号
+        self._image_list_panel.image_selected.connect(self._switch_image)
+        self._image_list_panel.re_detect_requested.connect(self._on_re_detect)
+        self._image_list_panel.remove_requested.connect(self._on_remove_from_list)
 
     def _setup_shortcuts(self) -> None:
         """设置键盘快捷键"""
@@ -376,21 +506,145 @@ class MainWindow(QMainWindow):
     # ---- 槽函数 ----
 
     def _on_load(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
+        paths, _ = QFileDialog.getOpenFileNames(
             self,
             "选择图片或 PDF",
             "",
             "所有支持格式 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp *.pdf);;图片 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;PDF (*.pdf);;所有文件 (*)",
         )
-        if not path:
+        if not paths:
             return
 
+        for path_str in paths:
+            self._load_single_file(path_str)
+
+        # 选中最后加载的
+        if paths:
+            self._image_list_panel.select_image(paths[-1])
+
+    def _load_single_file(self, path_str: str) -> None:
+        """加载单个文件并创建 session"""
+        path = Path(path_str)
+
         try:
-            self._canvas.load_image(path)
+            # 先保存当前 session 的状态（必须在 load_image 之前，否则 canvas 已被清除）
+            self._save_current_session()
+
+            # 加载到 Canvas
+            self._canvas.load_image(path_str)
+
+            # 创建 session
+            sess = ImageSession(
+                source_path=path,
+                source_image=self._canvas.source_image,
+                crop_rects=[],
+                undo_snapshot=self._canvas._undo_manager.serialize(),
+                pdf_pages=list(self._canvas._pdf_pages),
+                current_pdf_page=self._canvas._current_page,
+                is_pdf=self._canvas.total_pages > 0,
+            )
+            self._sessions[path_str] = sess
+            self._current_key = path_str
+
+            # 生成缩略图
+            thumb = self._canvas.source_image.copy()
+            thumb.thumbnail((100, 100), Image.Resampling.LANCZOS)
+
+            # 添加到列表面板
+            self._image_list_panel.add_image(
+                key=path_str,
+                filename=path.name,
+                thumbnail=thumb,
+                crop_count=0,
+            )
+            self._update_image_list_panel()
+
         except ImportError as e:
             QMessageBox.critical(self, "缺少依赖", str(e))
         except Exception as e:
             QMessageBox.critical(self, "加载失败", f"无法打开文件:\n{e}")
+
+    def _save_current_session(self) -> None:
+        """保存当前 session 的状态"""
+        if not self._current_key or self._current_key not in self._sessions:
+            return
+        sess = self._sessions[self._current_key]
+        sess.crop_rects = list(self._canvas.crop_rects)
+        sess.undo_snapshot = self._canvas._undo_manager.serialize()
+        sess.pdf_pages = list(self._canvas._pdf_pages)
+        sess.current_pdf_page = self._canvas._current_page
+        sess.is_pdf = self._canvas.total_pages > 0
+
+    def _switch_image(self, key: str) -> None:
+        """切换到另一张图片"""
+        if key == self._current_key:
+            return
+        if key not in self._sessions:
+            return
+
+        # 1. 保存当前
+        self._save_current_session()
+
+        # 2. 加载新
+        self._current_key = key
+        sess = self._sessions[key]
+        self._canvas.load_pil_image(sess.source_image)
+        self._canvas._undo_manager.deserialize(sess.undo_snapshot)
+        self._canvas._restore_rects(sess.crop_rects)
+
+        # 3. 恢复 PDF 状态
+        if sess.is_pdf:
+            self._canvas._pdf_pages = sess.pdf_pages
+            self._canvas._current_page = sess.current_pdf_page
+            self._canvas._show_page(sess.current_pdf_page)
+
+        self._update_button_states()
+        self._update_image_list_panel()
+
+    def _on_re_detect(self, key: str) -> None:
+        """右键菜单：重新检测"""
+        if key not in self._sessions:
+            return
+        # 切换到该图片
+        if key != self._current_key:
+            self._image_list_panel.select_image(key)
+        # 触发检测
+        self._on_detect()
+
+    def _on_remove_from_list(self, key: str) -> None:
+        """右键菜单：从列表移除"""
+        if key not in self._sessions:
+            return
+
+        # 如果移除的是当前图片，先切换到其他图片
+        if key == self._current_key:
+            # 找到下一个要选中的
+            keys = list(self._sessions.keys())
+            idx = keys.index(key)
+            if len(keys) > 1:
+                next_key = keys[idx - 1] if idx > 0 else keys[1]
+                self._switch_image(next_key)
+            else:
+                self._current_key = None
+                self._canvas.clear_all()
+
+        del self._sessions[key]
+        self._image_list_panel.remove_image(key)
+        self._update_image_list_panel()
+
+    def _update_image_list_panel(self) -> None:
+        """更新图像列表面板的裁剪框数量和统计"""
+        total_crops = 0
+        for key, sess in self._sessions.items():
+            # 获取实时数量：如果是当前图片，用 canvas 的实际数据
+            if key == self._current_key:
+                count = len(self._canvas.crop_rects)
+            else:
+                count = len(sess.crop_rects)
+            self._image_list_panel.update_crop_count(key, count)
+            total_crops += count
+
+        self._image_list_panel.update_total(len(self._sessions), total_crops)
 
     def _on_detect(self) -> None:
         detector = self._selected_detector
@@ -418,51 +672,80 @@ class MainWindow(QMainWindow):
         self._update_button_states()
 
     def _on_export(self) -> None:
-        rects = self._canvas.crop_rects
-        if not rects:
+        """打开导出对话框"""
+        current_crops = len(self._canvas.crop_rects)
+        total_crops = sum(len(s.crop_rects) for s in self._sessions.values())
+        # 如果当前图片没有 session（不太可能），用 canvas 的数据
+        if self._current_key and self._current_key in self._sessions:
+            total_crops = max(total_crops, current_crops)
+
+        if current_crops == 0 and total_crops == 0:
             QMessageBox.information(self, "导出", "没有裁剪框可以导出")
             return
 
-        source_img = self._canvas.source_image
-        if source_img is None:
+        dialog = ExportDialog(current_crops, total_crops, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        # 选择导出目录和格式
-        output_dir = QFileDialog.getExistingDirectory(self, "选择导出目录")
+        config = dialog.get_export_config()
+        output_dir = config["output_dir"]
         if not output_dir:
+            QMessageBox.warning(self, "导出", "请选择输出目录")
             return
 
-        output_dir = Path(output_dir)
-        source_name = "image"
-        if self._canvas.source_path:
-            source_name = self._canvas.source_path.stem
-
-        # 询问导出格式
-        format_choice = QMessageBox.question(
-            self,
-            "导出格式",
-            "选择导出格式：\n\n是 = JPEG（白色填充，文件更小）\n否 = PNG（支持透明通道）",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes,
-        )
-
-        if format_choice == QMessageBox.StandardButton.Cancel:
-            return
-
-        suffix = ".jpg" if format_choice == QMessageBox.StandardButton.Yes else ".png"
+        suffix = config["suffix"]
+        quality = config["quality"]
+        max_w = config["max_width"]
+        max_h = config["max_height"]
+        auto_rotate = config["auto_rotate"]
+        trim_white = config["trim_white"]
+        scope = config["scope"]
 
         exported = 0
         errors = []
 
-        for i, rect in enumerate(rects):
-            out_name = f"{source_name}_{i + 1:02d}{suffix}"
-            out_path = output_dir / out_name
+        if scope == "page":
+            # 只导出当前页
+            rects = self._canvas.crop_rects
+            source_img = self._canvas.source_image
+            source_name = "image"
+            if self._canvas.source_path:
+                source_name = self._canvas.source_path.stem
 
-            try:
-                export_photo(source_img, rect, out_path)
-                exported += 1
-            except Exception as e:
-                errors.append(f"#{i + 1}: {e}")
+            for i, rect in enumerate(rects):
+                out_name = f"{source_name}_{i + 1:02d}{suffix}"
+                out_path = output_dir / out_name
+                try:
+                    export_photo(source_img, rect, out_path,
+                                 auto_rotate=auto_rotate, trim_white=trim_white,
+                                 quality=quality, max_width=max_w, max_height=max_h)
+                    exported += 1
+                except Exception as e:
+                    errors.append(f"#{i + 1}: {e}")
+        else:
+            # 导出全部 session
+            for key, sess in self._sessions.items():
+                # 如果是当前图片，用 canvas 的实时数据
+                if key == self._current_key:
+                    rects = self._canvas.crop_rects
+                    source_img = self._canvas.source_image
+                else:
+                    rects = sess.crop_rects
+                    source_img = sess.source_image
+
+                source_name = sess.source_path.stem
+                page = sess.current_pdf_page if sess.is_pdf else 0
+
+                for i, rect in enumerate(rects):
+                    out_name = f"{source_name}_{page}_{i + 1:02d}{suffix}"
+                    out_path = output_dir / out_name
+                    try:
+                        export_photo(source_img, rect, out_path,
+                                     auto_rotate=auto_rotate, trim_white=trim_white,
+                                     quality=quality, max_width=max_w, max_height=max_h)
+                        exported += 1
+                    except Exception as e:
+                        errors.append(f"{source_name} #{i + 1}: {e}")
 
         msg = f"成功导出 {exported} 张照片"
         if errors:
@@ -483,9 +766,67 @@ class MainWindow(QMainWindow):
     def _on_redo(self) -> None:
         self._canvas.redo()
 
+    def _on_selection_changed(self) -> None:
+        """Canvas 选中变化 → 更新 CropOptionsPanel"""
+        selected = self._canvas.selected_items
+        if selected:
+            rect = selected[-1].crop_rect
+            img_size = (0, 0)
+            if self._canvas.source_image:
+                img_size = self._canvas.source_image.size
+            self._crop_options_panel.set_selected_rect(rect, img_size)
+        else:
+            self._crop_options_panel.set_selected_rect(None)
+
+    def _on_crop_options_changed(self) -> None:
+        """CropOptionsPanel 实时修改 → 刷新画布"""
+        # 同步到 CropItem 的视觉
+        for item in self._canvas.selected_items:
+            item._sync_from_rect()
+            item.update()
+        self._canvas.rects_changed.emit()
+
+    def _on_crop_options_finished(self) -> None:
+        """CropOptionsPanel 编辑完成 → 推入撤销栈"""
+        self._canvas._push_undo_state()
+
+    def _on_aspect_ratio_changed(self, ratio: float) -> None:
+        """宽高比变化 → 更新选中的 CropItem"""
+        for item in self._canvas.selected_items:
+            if ratio == 0.0:
+                item.aspect_ratio_lock = None
+            elif ratio == -1.0:
+                # Original: 使用当前宽高比
+                if item.crop_rect.height > 0:
+                    item.aspect_ratio_lock = item.crop_rect.width / item.crop_rect.height
+            else:
+                item.aspect_ratio_lock = ratio
+
+    def _on_extracted_crop_selected(self, index: int) -> None:
+        """点击预览缩略图 → 选中对应 CropItem"""
+        items = self._canvas.crop_items
+        if 0 <= index < len(items):
+            self._canvas._scene.clearSelection()
+            items[index].setSelected(True)
+
+    def _on_extracted_crop_delete(self, index: int) -> None:
+        """点击预览删除按钮 → 删除对应 CropItem"""
+        items = self._canvas.crop_items
+        if 0 <= index < len(items):
+            item = items[index]
+            if item in self._canvas._crop_items:
+                self._canvas._crop_items.remove(item)
+            if item.scene():
+                self._canvas._scene.removeItem(item)
+            self._canvas._push_undo_state()
+            self._canvas.rects_changed.emit()
+
     def _on_image_loaded(self) -> None:
         self._update_button_states()
         w, h = self._canvas.source_image.size
+
+        # 更新预览面板源图
+        self._extracted_panel.set_source_image(self._canvas.source_image)
 
         # 显示/隐藏 PDF 导航
         is_pdf = self._canvas.total_pages > 0
@@ -498,6 +839,7 @@ class MainWindow(QMainWindow):
 
     def _on_detection_done(self, count: int) -> None:
         self._update_button_states()
+        self._update_image_list_panel()
 
     def _on_rects_changed(self) -> None:
         # 防抖：50ms 内多次信号只触发一次按钮状态刷新
@@ -507,6 +849,10 @@ class MainWindow(QMainWindow):
             self._lbl_info.setText(f"{count} 个裁剪框")
         else:
             self._lbl_info.setText("")
+        # 更新图像列表面板中的裁剪框计数
+        self._update_image_list_panel()
+        # 更新提取预览面板
+        self._extracted_panel.refresh(self._canvas.crop_rects)
 
     def _on_page_changed(self, current: int, total: int) -> None:
         self._lbl_page_info.setText(f"{current + 1} / {total}")
@@ -523,3 +869,70 @@ class MainWindow(QMainWindow):
         self._btn_detect.setEnabled(has_image)
         self._btn_clear.setEnabled(has_rects)
         self._btn_export.setEnabled(has_rects)
+        self._btn_export_page.setEnabled(has_rects)
+
+    # ---- 视图切换 ----
+
+    def _switch_view(self, mode: int) -> None:
+        """切换 Grid / Single 视图"""
+        if mode == self._view_mode:
+            return
+
+        self._view_mode = mode
+        self._view_stack.setCurrentIndex(mode)
+
+        # 更新按钮状态
+        self._btn_grid.setChecked(mode == 0)
+        self._btn_single.setChecked(mode == 1)
+        self._btn_grid.setStyleSheet(self._view_toggle_style(mode == 0))
+        self._btn_single.setStyleSheet(self._view_toggle_style(mode == 1))
+
+        # 切换到 Single View 时更新数据
+        if mode == 1:
+            if self._canvas.source_image:
+                self._single_view.set_data(
+                    self._canvas.source_image,
+                    self._canvas.crop_rects,
+                )
+
+    def _on_view_single_requested(self, index: int) -> None:
+        """裁剪框工具栏请求切换到 Single View"""
+        self._switch_view(1)
+        self._single_view.select_crop(index)
+
+    def _on_single_view_selection(self, index: int) -> None:
+        """Single View 中选中裁剪框变化"""
+        items = self._canvas.crop_items
+        if 0 <= index < len(items):
+            self._canvas._scene.clearSelection()
+            items[index].setSelected(True)
+
+    @staticmethod
+    def _view_toggle_style(checked: bool) -> str:
+        if checked:
+            return f"""
+                QPushButton {{
+                    background-color: {APPLE_BLUE};
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 4px 12px;
+                    font-family: {FONT_BODY};
+                    font-size: 11px;
+                }}
+            """
+        return f"""
+            QPushButton {{
+                background-color: transparent;
+                color: #86868b;
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 6px;
+                padding: 4px 12px;
+                font-family: {FONT_BODY};
+                font-size: 11px;
+            }}
+            QPushButton:hover {{
+                color: {TEXT_PRIMARY};
+                border-color: rgba(255,255,255,0.3);
+            }}
+        """

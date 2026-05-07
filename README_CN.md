@@ -26,11 +26,19 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 
 ## 功能
 
-- **多种检测引擎** — 传统 CV（边缘检测 + 形态学）、增强 CV、组合检测器（IoU 投票融合）、YOLO-World 零样本开放词汇检测
+- **多种检测引擎** — 传统 CV（边缘检测 + 形态学）、增强 CV（已废弃）、组合检测器（IoU 投票融合）、YOLO-World 零样本开放词汇检测
 - **可插拔检测器架构** — 基于 ABC 抽象基类和工厂模式，可以随时切换检测器或自己写一个
 - **三种运行模式** — CLI 命令行（写脚本用）、GUI 图形界面（交互编辑）、PDF 批量模式（一键处理整本）
-- **智能导出** — 自动旋转矫正、去白边、支持多种输出格式
-- **撤销/重做** — Ctrl+Z / Ctrl+Shift+Z 支持裁剪框操作撤销
+- **多图像管理** — 左侧面板显示缩略图、文件名、裁剪计数；右键菜单操作
+- **裁剪框属性面板** — 实时编辑 Width/Height/X/Y/Rotation，支持宽高比锁定
+- **裁剪结果预览** — 2 列网格预览，LRU 缓存，点击选中或删除
+- **Single View** — 双栏布局：原图缩略 + 提取大图，页码导航
+- **批量导出对话框** — 格式（JPEG/PNG/TIFF）、质量、最大宽高、文件名模板、自动旋转、去白边
+- **模板系统** — 百分比坐标存储的裁剪模板，跨图片复用
+- **同步与翻转** — 同步选中裁剪框的尺寸；水平/垂直翻转
+- **智能导出** — 自动旋转矫正、去白边、EXIF 元数据写入、多种输出格式
+- **撤销/重做** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y 支持裁剪框操作撤销
+- **多选操作** — Ctrl+Click 加选/减选、Ctrl+A 全选、Tab/Shift+Tab 循环、Esc 取消选中
 - **键盘快捷键** — Ctrl+O（加载）、Ctrl+D（检测）、Ctrl+E（导出）、← →（翻页）
 - **用户配置** — 可选 `~/.config/photocrop/config.yaml` 持久化偏好设置
 - **参数可调** — 最大照片数、最小尺寸阈值、fallback 兜底策略等
@@ -101,6 +109,10 @@ python -m photocrop.main page.jpg --detector yolo-world    # YOLO-World（需下
 | Ctrl+Shift+Z / Ctrl+Y | 重做 |
 | ← → | 上/下一页 |
 | Delete / Backspace | 删除选中的裁剪框 |
+| Tab / Shift+Tab | 循环选中裁剪框 |
+| Ctrl+A | 全选裁剪框 |
+| Ctrl+Click | 加选/减选 |
+| Esc | 取消选中 |
 
 ---
 
@@ -123,11 +135,18 @@ photocrop/
   │   ├── filters.py           小框过滤、IoU 去重、数量限制
   │   └── rotation_estimator.py  旋转角度估算
   │
-  ├── ui/              PySide6 图形界面
-  │   ├── main_window.py   工具栏 + 状态栏 + 快捷键
-  │   ├── canvas.py        带交互裁剪框的画布 + 撤销/重做
-  │   ├── crop_item.py     可拖拽编辑的裁剪框（旋转、手柄）
-  │   └── undo_manager.py  撤销/重做状态管理
+  ├── ui/              PySide6 图形界面（Apple 设计风格）
+  │   ├── main_window.py       工具栏 + 状态栏 + 快捷键 + 多图 session
+  │   ├── canvas.py            画布 + 交互裁剪框 + 撤销/重做 + 同步/翻转
+  │   ├── crop_item.py         可拖拽裁剪框（旋转、手柄、浮动工具栏、宽高比锁定）
+  │   ├── undo_manager.py      撤销/重做状态管理（支持序列化）
+  │   ├── session.py           ImageSession 单图会话数据类
+  │   ├── image_list_panel.py  左侧图像列表面板（缩略图 + 文件名 + 裁剪计数）
+  │   ├── crop_options_panel.py 右侧属性面板（Width/Height/X/Y/Rotation/宽高比）
+  │   ├── extracted_images_panel.py 裁剪结果预览（2 列网格 + LRU 缓存）
+  │   ├── single_view_panel.py Single View 大图预览
+  │   ├── export_dialog.py     批量导出设置对话框
+  │   └── template_manager.py  裁剪框模板管理器（百分比坐标）
   │
   ├── export/          导出层
   │   ├── cropper.py      裁剪 → 旋转 → 去白边 → 保存

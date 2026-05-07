@@ -41,6 +41,8 @@ def export_photo(
     auto_rotate: bool = True,
     trim_white: bool = True,
     quality: int = 95,
+    max_width: int = 0,
+    max_height: int = 0,
 ) -> Path:
     """从源图像中裁剪并导出一张照片
 
@@ -79,6 +81,10 @@ def export_photo(
     # ---- 步骤 4: 去白边 ----
     if trim_white:
         cropped = _trim_white_border(cropped)
+
+    # ---- 步骤 5: 尺寸限制 ----
+    if max_width > 0 or max_height > 0:
+        cropped = _resize_if_needed(cropped, max_width, max_height)
 
     # ---- 保存 ----
     _save_image(cropped, output_path, quality=quality)
@@ -189,7 +195,11 @@ def _save_image(img: Image.Image, path: Path, quality: int = 95) -> None:
             img = background
         elif img.mode != "RGB":
             img = img.convert("RGB")
-        img.save(str(path), "JPEG", quality=quality)
+        exif_data = img.info.get("exif")
+        if exif_data:
+            img.save(str(path), "JPEG", quality=quality, exif=exif_data)
+        else:
+            img.save(str(path), "JPEG", quality=quality)
 
     elif suffix == ".png":
         # PNG: 保留透明通道
@@ -197,6 +207,107 @@ def _save_image(img: Image.Image, path: Path, quality: int = 95) -> None:
             img = img.convert("RGBA")
         img.save(str(path), "PNG")
 
+    elif suffix in (".tif", ".tiff"):
+        # TIFF: LZW 压缩
+        if img.mode not in ("RGB", "RGBA", "L"):
+            img = img.convert("RGB")
+        exif_data = img.info.get("exif")
+        if exif_data:
+            img.save(str(path), "TIFF", compression="tiff_lzw", exif=exif_data)
+        else:
+            img.save(str(path), "TIFF", compression="tiff_lzw")
+
     else:
         # 默认按原格式保存
         img.save(str(path))
+
+
+def _resize_if_needed(img: Image.Image, max_w: int, max_h: int) -> Image.Image:
+    """按最大宽高限制缩放图像（保持比例）"""
+    if max_w <= 0 and max_h <= 0:
+        return img
+    w, h = img.size
+    ratio = 1.0
+    if max_w > 0 and w > max_w:
+        ratio = min(ratio, max_w / w)
+    if max_h > 0 and h > max_h:
+        ratio = min(ratio, max_h / h)
+    if ratio < 1.0:
+        new_w, new_h = int(w * ratio), int(h * ratio)
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    return img
+
+
+def export_photo_to_memory(
+    source_img: Image.Image,
+    rect: CropRect,
+    *,
+    auto_rotate: bool = True,
+    trim_white: bool = True,
+) -> Image.Image:
+    """导出到内存，返回 PIL Image，不保存文件
+
+    用于预览面板和 Single View 显示。
+    """
+    cropped = _crop_image(source_img, rect)
+    if rect.rotation_angle != 0.0:
+        cropped = _apply_rotation(cropped, rect.rotation_angle)
+    if auto_rotate:
+        try:
+            angle = estimate_rotation_angle(cropped)
+            if angle != 0.0:
+                cropped = _apply_rotation(cropped, angle)
+        except (ValueError, RuntimeError, OSError):
+            pass
+    if trim_white:
+        cropped = _trim_white_border(cropped)
+    return cropped
+
+
+def write_exif_metadata(
+    img: Image.Image,
+    *,
+    title: str = "",
+    description: str = "",
+    tags: str = "",
+    date: str = "",
+) -> Image.Image:
+    """写入 EXIF 元数据（仅 JPEG/TIFF 有效）
+
+    使用 Pillow 原生 EXIF 支持，不引入额外依赖。
+    EXIF 数据存储在 img.info["exif"] 中，_save_image 会自动传递给 save()。
+
+    Args:
+        img: 输入图像
+        title: 图片标题 (ImageDescription)
+        description: 描述 (UserComment)
+        tags: 标签 (XPKeywords)
+        date: 日期 (DateTimeOriginal)
+
+    Returns:
+        带 EXIF 数据的图像副本
+    """
+    img = img.copy()
+
+    # 使用 IFD 字典直接构建 EXIF 字节
+    # 避免 Exif() 对象在空图像上初始化不完整的问题
+    from PIL.Image import Exif
+
+    exif = Exif()
+    exif[0x010F] = "PhotoCrop"  # Make — 标识来源
+
+    if title:
+        exif[0x010E] = title  # ImageDescription
+
+    if date:
+        exif[0x9003] = date  # DateTimeOriginal
+
+    if description:
+        comment_bytes = b"ASCII\x00\x00\x00" + description.encode("ascii", errors="replace")[:500]
+        exif[0x9286] = comment_bytes  # UserComment
+
+    if tags:
+        exif[0x9C9E] = tags.encode("utf-16-le") + b"\x00\x00"  # XPKeywords
+
+    img.info["exif"] = exif.tobytes()
+    return img

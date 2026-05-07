@@ -26,11 +26,19 @@ The whole detection pipeline runs locally with offline models. Your photos never
 
 ## Features
 
-- **Multiple detection engines** — Traditional CV (edge detection + morphology), Enhanced CV, Combined detector (IoU voting fusion), and YOLO-World zero-shot open-vocabulary detection
+- **Multiple detection engines** — Traditional CV (edge detection + morphology), Enhanced CV (deprecated), Combined detector (IoU voting fusion), and YOLO-World zero-shot open-vocabulary detection
 - **Pluggable detector architecture** — ABC base class + factory pattern; swap detectors or add your own
 - **Three modes** — CLI for scripting, GUI (PySide6) for interactive editing, PDF batch for bulk processing
-- **Smart export** — Auto-rotation correction, white-border trimming, multi-format output
-- **Undo/Redo** — Ctrl+Z / Ctrl+Shift+Z for crop operations
+- **Multi-image management** — Left panel with thumbnails, file names, and crop counts; right-click context menu
+- **Crop property panel** — Real-time editing of Width/Height/X/Y/Rotation with aspect ratio lock
+- **Crop result preview** — 2-column grid with LRU cache; click to select or delete
+- **Single View** — Side-by-side layout: original thumbnail + extracted full-size image with page navigation
+- **Batch export dialog** — Format (JPEG/PNG/TIFF), quality, max dimensions, filename template, auto-rotation, white-border trimming
+- **Template system** — Percentage-based crop templates that work across different images
+- **Sync & Transform** — Sync crop dimensions across selections; flip horizontal/vertical
+- **Smart export** — Auto-rotation correction, white-border trimming, EXIF metadata, multi-format output
+- **Undo/Redo** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y for all crop operations
+- **Multi-select** — Ctrl+Click, Ctrl+A (select all), Tab/Shift+Tab (cycle), Esc (deselect)
 - **Keyboard shortcuts** — Ctrl+O (load), Ctrl+D (detect), Ctrl+E (export), arrow keys (page navigation)
 - **User config** — Optional `~/.config/photocrop/config.yaml` for persistent preferences
 - **Configurable** — Max photo count, minimum size thresholds, fallback behavior, and more
@@ -101,6 +109,10 @@ python -m photocrop.main page.jpg --detector yolo-world   # YOLO-World (requires
 | Ctrl+Shift+Z / Ctrl+Y | Redo |
 | ← → | Previous/next page |
 | Delete / Backspace | Remove selected crop box |
+| Tab / Shift+Tab | Cycle through crop boxes |
+| Ctrl+A | Select all crop boxes |
+| Ctrl+Click | Add/remove from selection |
+| Esc | Deselect all |
 
 ---
 
@@ -123,11 +135,18 @@ photocrop/
   │   ├── filters.py           Small-box filtering, IoU dedup, count limiting
   │   └── rotation_estimator.py  Rotation angle estimation
   │
-  ├── ui/                  PySide6 GUI
-  │   ├── main_window.py   Toolbar + status bar + shortcuts
-  │   ├── canvas.py        Canvas with interactive crop boxes + undo/redo
-  │   ├── crop_item.py     Editable crop region widget (rotation, handles)
-  │   └── undo_manager.py  Undo/redo state management
+  ├── ui/                  PySide6 GUI (Apple design)
+  │   ├── main_window.py       Toolbar + status bar + shortcuts + multi-image session
+  │   ├── canvas.py            Canvas with interactive crop boxes + undo/redo + sync/flip
+  │   ├── crop_item.py         Editable crop region widget (rotation, handles, floating toolbar, aspect lock)
+  │   ├── undo_manager.py      Undo/redo state management (serializable)
+  │   ├── session.py           ImageSession data class for per-image state
+  │   ├── image_list_panel.py  Left panel: thumbnails + filenames + crop counts
+  │   ├── crop_options_panel.py Right panel: Width/Height/X/Y/Rotation/Aspect Ratio
+  │   ├── extracted_images_panel.py Crop result preview (2-column grid + LRU cache)
+  │   ├── single_view_panel.py Single View: thumbnail + full-size preview
+  │   ├── export_dialog.py     Batch export settings dialog
+  │   └── template_manager.py  Crop template manager (percentage coordinates)
   │
   ├── export/              Output layer
   │   ├── cropper.py       Crop -> rotate -> trim -> save

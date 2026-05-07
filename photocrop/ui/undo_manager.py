@@ -69,3 +69,30 @@ class UndoManager:
         """清空所有历史"""
         self._undo_stack.clear()
         self._redo_stack.clear()
+
+    def serialize(self) -> list:
+        """将 undo_stack 最后一帧序列化为可 JSON 的 dict 列表
+
+        用于多图像管理：保存当前图像的裁剪框状态。
+        """
+        if not self._undo_stack:
+            return []
+        current = self._undo_stack[-1]
+        return [
+            {
+                "x": r.x, "y": r.y, "width": r.width, "height": r.height,
+                "rotation_angle": r.rotation_angle,
+                "source_type": r.source_type, "page_num": r.page_num,
+            }
+            for r in current
+        ]
+
+    def deserialize(self, data: list) -> List[CropRect]:
+        """从 dict 列表恢复为 CropRect 列表，并推入 undo 栈作为初始状态
+
+        用于多图像管理：切换图像时恢复裁剪框状态。
+        """
+        rects = [CropRect(**d) for d in data]
+        self.clear()
+        self.push_state(rects)
+        return rects

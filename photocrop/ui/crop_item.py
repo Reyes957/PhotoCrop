@@ -94,10 +94,16 @@ class CropItem(QGraphicsRectItem):
         self._drag_start = QPointF()
         self._drag_rect = QRectF()
         self._hovered_handle = HandlePosition.NONE
+        self._is_toolbar_hovered = False
+
+        # 宽高比锁定（None = Free，-1 = Original，>0 = 固定比值）
+        self.aspect_ratio_lock: Optional[float] = None
 
         # 回调函数（替代 Signal）
         self._on_changed: Optional[Callable] = None
         self._on_deleted: Optional[Callable] = None
+        self._on_view_single: Optional[Callable] = None  # 切换到 Single View
+        self._on_copy: Optional[Callable] = None          # 复制此框
 
         # 交互设置
         self.setAcceptHoverEvents(True)
@@ -110,10 +116,14 @@ class CropItem(QGraphicsRectItem):
         # 从 CropRect 同步位置
         self._sync_from_rect()
 
-    def set_callbacks(self, on_changed: Callable, on_deleted: Callable) -> None:
+    def set_callbacks(self, on_changed: Callable, on_deleted: Callable,
+                      on_view_single: Optional[Callable] = None,
+                      on_copy: Optional[Callable] = None) -> None:
         """设置回调函数"""
         self._on_changed = on_changed
         self._on_deleted = on_deleted
+        self._on_view_single = on_view_single
+        self._on_copy = on_copy
 
     @property
     def crop_rect(self) -> CropRect:
@@ -169,9 +179,11 @@ class CropItem(QGraphicsRectItem):
         painter.setPen(pen)
         painter.drawRect(rect)
 
-        # 选中时绘制手柄（在旋转坐标系内）
+        # 选中时绘制手柄和工具栏（在旋转坐标系内）
         if is_selected:
             self._paint_handles(painter, rect)
+            if self._hovered_handle != HandlePosition.NONE or self._is_toolbar_hovered:
+                self._paint_toolbar(painter, rect)
 
         painter.restore()
 
@@ -236,6 +248,74 @@ class CropItem(QGraphicsRectItem):
             text_pos = QPointF(rotation_pos.x() + 12, rotation_pos.y() - 4)
             painter.drawText(text_pos, angle_text)
 
+    # ---- 工具栏 ----
+
+    TOOLBAR_BUTTON_SIZE = 20
+    TOOLBAR_GAP = 4
+    TOOLBAR_LABELS = ["⛶", "📋", "✕"]  # view, copy, delete
+
+    def _toolbar_rects(self, rect: QRectF) -> list:
+        """返回三个工具栏按钮的 QRectF（在裁剪框坐标系内）"""
+        btn_w = self.TOOLBAR_BUTTON_SIZE
+        total_w = btn_w * 3 + self.TOOLBAR_GAP * 2
+        x_start = rect.center().x() - total_w / 2
+        y = rect.top() - 28  # 框上方 28px
+
+        rects = []
+        for i in range(3):
+            rx = x_start + i * (btn_w + self.TOOLBAR_GAP)
+            rects.append(QRectF(rx, y, btn_w, btn_w))
+        return rects
+
+    def _paint_toolbar(self, painter: QPainter, rect: QRectF) -> None:
+        """绘制裁剪框上方的工具栏"""
+        btn_rects = self._toolbar_rects(rect)
+
+        # 背景
+        total_w = self.TOOLBAR_BUTTON_SIZE * 3 + self.TOOLBAR_GAP * 2
+        bg_rect = QRectF(
+            rect.center().x() - total_w / 2 - 4,
+            rect.top() - 32,
+            total_w + 8,
+            self.TOOLBAR_BUTTON_SIZE + 8,
+        )
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 153)))  # #00000099
+        painter.drawRoundedRect(bg_rect, 4, 4)
+
+        # 按钮
+        font = painter.font()
+        font.setPointSize(10)
+        painter.setFont(font)
+
+        for i, (btn_rect, label) in enumerate(zip(btn_rects, self.TOOLBAR_LABELS)):
+            # 按钮背景
+            if btn_rect.contains(self._toolbar_hover_pos):
+                painter.setBrush(QBrush(QColor(255, 255, 255, 40)))
+            else:
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(btn_rect, 3, 3)
+
+            # 图标文字
+            painter.setPen(QPen(WHITE))
+            painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, label)
+
+    @property
+    def _toolbar_hover_pos(self) -> QPointF:
+        """返回鼠标在裁剪框坐标系中的位置（用于工具栏高亮）"""
+        return getattr(self, '_last_hover_pos', QPointF())
+
+    def _toolbar_button_at(self, pos: QPointF) -> int:
+        """检测点击是否在工具栏按钮上，返回按钮索引（-1=无）"""
+        if not self.isSelected():
+            return -1
+        rect = self.rect()
+        btn_rects = self._toolbar_rects(rect)
+        for i, btn_rect in enumerate(btn_rects):
+            if btn_rect.contains(pos):
+                return i
+        return -1
+
     # ---- 手柄检测 ----
 
     def _handle_at(self, pos: QPointF) -> str:
@@ -299,16 +379,41 @@ class CropItem(QGraphicsRectItem):
         if handle != self._hovered_handle:
             self._hovered_handle = handle
             self.update()  # 触发重绘
+        self._last_hover_pos = event.pos()
+        # 检测工具栏 hover
+        toolbar_idx = self._toolbar_button_at(event.pos())
+        was_hovered = self._is_toolbar_hovered
+        self._is_toolbar_hovered = toolbar_idx >= 0
+        if was_hovered != self._is_toolbar_hovered:
+            self.update()
         self._update_cursor(handle)
         super().hoverMoveEvent(event)
 
     def hoverLeaveEvent(self, event: QGraphicsSceneHoverEvent) -> None:
         self._hovered_handle = HandlePosition.NONE
+        self._is_toolbar_hovered = False
         self.update()
         super().hoverLeaveEvent(event)
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            # 先检查工具栏按钮
+            toolbar_idx = self._toolbar_button_at(event.pos())
+            if toolbar_idx == 0 and self._on_view_single:
+                self._on_view_single()
+                event.accept()
+                return
+            elif toolbar_idx == 1 and self._on_copy:
+                self._on_copy()
+                event.accept()
+                return
+            elif toolbar_idx == 2 and self._on_deleted:
+                self._on_deleted()
+                if self.scene():
+                    self.scene().removeItem(self)
+                event.accept()
+                return
+
             self._drag_handle = self._handle_at(event.pos())
             self._drag_start = event.pos()
             self._drag_rect = self.rect()
@@ -370,6 +475,25 @@ class CropItem(QGraphicsRectItem):
                 new_rect.setWidth(min_size)
             if new_rect.height() < min_size:
                 new_rect.setHeight(min_size)
+
+            # 宽高比锁定
+            if self.aspect_ratio_lock is not None and self.aspect_ratio_lock > 0:
+                ratio = self.aspect_ratio_lock
+                # 根据拖动手柄类型决定以哪个维度为主
+                if self._drag_handle in (
+                    HandlePosition.LEFT, HandlePosition.RIGHT,
+                    HandlePosition.TOP_LEFT, HandlePosition.TOP_RIGHT,
+                    HandlePosition.BOTTOM_LEFT, HandlePosition.BOTTOM_RIGHT,
+                ):
+                    # 以宽度为主，计算高度
+                    new_h = new_rect.width() / ratio
+                    if new_h >= min_size:
+                        new_rect.setHeight(new_h)
+                else:
+                    # 以高度为主，计算宽度
+                    new_w = new_rect.height() * ratio
+                    if new_w >= min_size:
+                        new_rect.setWidth(new_w)
 
         self.setRect(new_rect)
         self._sync_to_rect()

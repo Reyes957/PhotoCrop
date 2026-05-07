@@ -47,6 +47,8 @@ class CropCanvas(QGraphicsView):
     image_loaded = Signal()
     detection_done = Signal(int)
     page_changed = Signal(int, int)  # current_page, total_pages
+    selection_changed = Signal()      # 选中的裁剪框变化
+    view_single_requested = Signal(int)  # 请求切换到 Single View，参数为裁剪框索引
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -84,6 +86,9 @@ class CropCanvas(QGraphicsView):
         self.setViewportUpdateMode(
             QGraphicsView.ViewportUpdateMode.FullViewportUpdate
         )
+
+        # 监听 scene 选中变化
+        self._scene.selectionChanged.connect(self._on_selection_changed)
 
     @property
     def source_image(self) -> Optional[Image.Image]:
@@ -212,15 +217,15 @@ class CropCanvas(QGraphicsView):
     @staticmethod
     def _pil_to_qimage(img: Image.Image) -> QImage:
         if img.mode == "RGBA":
+            img = img.convert("RGBA")
             data = img.tobytes("raw", "RGBA")
-            qimage = QImage(data, img.width, img.height, QImage.Format.Format_RGBA8888)
-        elif img.mode == "RGB":
-            data = img.tobytes("raw", "RGB")
-            qimage = QImage(data, img.width, img.height, QImage.Format.Format_RGB888)
+            bpl = img.width * 4
+            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGBA8888)
         else:
             img = img.convert("RGB")
             data = img.tobytes("raw", "RGB")
-            qimage = QImage(data, img.width, img.height, QImage.Format.Format_RGB888)
+            bpl = img.width * 3
+            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGB888)
         return qimage.copy()
 
     # ---- 撤销/重做 ----
@@ -271,6 +276,8 @@ class CropCanvas(QGraphicsView):
         item.set_callbacks(
             on_changed=self._on_crop_changed,
             on_deleted=lambda it=item: self._on_crop_deleted(it),
+            on_view_single=lambda it=item: self._on_crop_view_single(it),
+            on_copy=lambda it=item: self._on_crop_copy(it),
         )
         self._scene.addItem(item)
         self._crop_items.append(item)
@@ -324,15 +331,97 @@ class CropCanvas(QGraphicsView):
         self._push_undo_state()
         self.rects_changed.emit()
 
+    def _on_crop_view_single(self, item: CropItem) -> None:
+        """裁剪框工具栏：切换到 Single View（由 MainWindow 连接）"""
+        # 发出信号让 MainWindow 处理
+        if hasattr(self, 'view_single_requested'):
+            idx = self._crop_items.index(item) if item in self._crop_items else 0
+            self.view_single_requested.emit(idx)
+
+    def _on_crop_copy(self, item: CropItem) -> None:
+        """裁剪框工具栏：复制此框（偏移 20px）"""
+        new_rect = CropRect(
+            x=item.crop_rect.x + 20,
+            y=item.crop_rect.y + 20,
+            width=item.crop_rect.width,
+            height=item.crop_rect.height,
+            rotation_angle=item.crop_rect.rotation_angle,
+            source_type=item.crop_rect.source_type,
+            page_num=item.crop_rect.page_num,
+        )
+        self._add_crop_item(new_rect)
+        self._push_undo_state()
+        self.rects_changed.emit()
+
     def _push_undo_state(self) -> None:
         """将当前裁剪框状态推入撤销栈"""
         self._undo_manager.push_state(self.crop_rects)
+
+    def _on_selection_changed(self) -> None:
+        """scene 选中变化时发出信号"""
+        self.selection_changed.emit()
+
+    @property
+    def selected_items(self) -> List[CropItem]:
+        """返回当前选中的 CropItem 列表"""
+        return [it for it in self._crop_items if it.isSelected()]
+
+    @property
+    def selected_crop_rects(self) -> List[CropRect]:
+        """返回当前选中的 CropRect 列表"""
+        return [it.crop_rect for it in self._crop_items if it.isSelected()]
+
+    # ---- 同步 / 翻转 ----
+
+    def sync_selected_crops(self) -> int:
+        """将最后选中的裁剪框参数同步到其他选中的框。返回同步数量。"""
+        selected = [it for it in self._crop_items if it.isSelected()]
+        if len(selected) < 2:
+            return 0
+        source = selected[-1]  # 最后选中的为源
+        src_rect = source.crop_rect
+        count = 0
+        for item in selected[:-1]:
+            item.crop_rect.width = src_rect.width
+            item.crop_rect.height = src_rect.height
+            item.crop_rect.rotation_angle = src_rect.rotation_angle
+            item._sync_from_rect()
+            count += 1
+        self._push_undo_state()
+        self.rects_changed.emit()
+        return count
+
+    def flip_horizontal(self) -> None:
+        """水平翻转：选中的裁剪框以原图中心垂直线为轴翻转 x 坐标"""
+        selected = [it for it in self._crop_items if it.isSelected()]
+        if selected and self._source_image:
+            center_x = self._source_image.width / 2
+            for item in selected:
+                item.crop_rect.x = 2 * center_x - item.crop_rect.x
+                item._sync_from_rect()
+            self._push_undo_state()
+            self.rects_changed.emit()
+
+    def flip_vertical(self) -> None:
+        """垂直翻转：选中的裁剪框以原图中心水平线为轴翻转 y 坐标"""
+        selected = [it for it in self._crop_items if it.isSelected()]
+        if selected and self._source_image:
+            center_y = self._source_image.height / 2
+            for item in selected:
+                item.crop_rect.y = 2 * center_y - item.crop_rect.y
+                item._sync_from_rect()
+            self._push_undo_state()
+            self.rects_changed.emit()
 
     # ---- 框选新建 ----
 
     def mousePressEvent(self, event) -> None:
         if (event.button() == Qt.MouseButton.LeftButton
                 and not self._item_at(event.position())):
+            # Ctrl+Click: 不启动框选，让 scene 处理多选
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                super().mousePressEvent(event)
+                return
             self._drawing = True
             self._draw_start = self.mapToScene(event.position().toPoint())
             # 延迟创建临时矩形 — 只有真正拖动才显示
@@ -340,6 +429,59 @@ class CropCanvas(QGraphicsView):
             event.accept()
         else:
             super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        key = event.key()
+        modifiers = event.modifiers()
+
+        # Tab: 循环选中下一个 CropItem
+        if key == Qt.Key.Key_Tab and not (modifiers & Qt.KeyboardModifier.ControlModifier):
+            self._cycle_selection(forward=True)
+            event.accept()
+            return
+
+        # Shift+Tab: 选中上一个
+        if key == Qt.Key.Key_Tab and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+            self._cycle_selection(forward=False)
+            event.accept()
+            return
+
+        # Ctrl+A: 全选
+        if key == Qt.Key.Key_A and (modifiers & Qt.KeyboardModifier.ControlModifier):
+            for item in self._crop_items:
+                item.setSelected(True)
+            event.accept()
+            return
+
+        # Esc: 取消所有选中
+        if key == Qt.Key.Key_Escape:
+            self._scene.clearSelection()
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
+
+    def _cycle_selection(self, forward: bool = True) -> None:
+        """循环选中下一个/上一个 CropItem"""
+        if not self._crop_items:
+            return
+
+        # 找到当前选中项的索引
+        current_idx = -1
+        for i, item in enumerate(self._crop_items):
+            if item.isSelected():
+                current_idx = i
+                break
+
+        # 计算下一个索引
+        if forward:
+            next_idx = (current_idx + 1) % len(self._crop_items)
+        else:
+            next_idx = (current_idx - 1) % len(self._crop_items)
+
+        # 取消所有选中，选中目标
+        self._scene.clearSelection()
+        self._crop_items[next_idx].setSelected(True)
 
     def mouseMoveEvent(self, event) -> None:
         if self._drawing:
