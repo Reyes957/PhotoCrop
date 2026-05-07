@@ -14,6 +14,8 @@ from typing import Optional, List
 from PIL import Image
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap, QImage, QPen, QColor, QBrush, QPainter
+
+from photocrop.ui.utils import pil_to_qimage, pil_to_pixmap
 from PySide6.QtWidgets import (
     QWidget,
     QHBoxLayout,
@@ -225,7 +227,7 @@ class SingleViewPanel(QWidget):
             return
 
         # 显示原图
-        qimage = self._pil_to_qimage(self._source_image)
+        qimage = pil_to_qimage(self._source_image)
         pixmap = QPixmap.fromImage(qimage)
         self._pixmap_item = self._overview_scene.addPixmap(pixmap)
 
@@ -274,7 +276,7 @@ class SingleViewPanel(QWidget):
             # 缩放到预览区域大小
             max_w, max_h = 600, 600
             cropped.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
-            pixmap = self._pil_to_pixmap(cropped)
+            pixmap = pil_to_pixmap(cropped)
             self._preview_label.setText("")
             self._preview_label.setPixmap(pixmap)
         except (ValueError, RuntimeError, OSError):
@@ -288,21 +290,3 @@ class SingleViewPanel(QWidget):
         self._btn_prev.setEnabled(self._current_index > 0)
         self._btn_next.setEnabled(self._current_index < total - 1)
 
-    @staticmethod
-    def _pil_to_qimage(img: Image.Image) -> QImage:
-        if img.mode == "RGBA":
-            img = img.convert("RGBA")
-            data = img.tobytes("raw", "RGBA")
-            bpl = img.width * 4
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGBA8888)
-        else:
-            img = img.convert("RGB")
-            data = img.tobytes("raw", "RGB")
-            bpl = img.width * 3
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGB888)
-        return qimage.copy()
-
-    @staticmethod
-    def _pil_to_pixmap(img: Image.Image) -> QPixmap:
-        qimage = SingleViewPanel._pil_to_qimage(img)
-        return QPixmap.fromImage(qimage)

@@ -154,9 +154,9 @@ def run_gui(args) -> int:
     window = MainWindow()
     window.show()
 
-    # 如果命令行指定了图片，自动加载
+    # 如果命令行指定了图片，自动加载（通过 session 创建流程）
     if args.image and args.image.exists():
-        window._canvas.load_image(args.image)
+        window._load_single_file(str(args.image))
 
     return app.exec()
 

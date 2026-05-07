@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.5.1 — Bug 修复 + 代码质量（2026-05-07）
+
+### Bug 修复
+
+- **clear_crops() 后无法撤销** — `canvas.py` 清除操作前未保存状态到撤销栈。修复：在清除前调用 `_push_undo_state()`
+- **拖拽新建裁剪框后无法撤销** — `canvas.py` mouseReleaseEvent 中新建框后未推入撤销栈。修复：新建后调用 `_push_undo_state()`
+- **属性面板选中后不显示** — `main_window.py` 的 `_on_selection_changed` 在无选中时传入 None 覆盖已有数据；`crop_options_panel.py` 的 `set_selected_rect` 缺少防御。修复：无选中时直接 return + 防御 None 覆盖
+- **pyproject.toml build-backend 错误** — `setuptools.backends._legacy:_Backend` 不存在导致 `pip install -e .` 失败。修复：改为 `setuptools.build_meta`
+- **TemplateManager str 路径崩溃** — 传入 str 时 `config_dir / "templates.json"` 报 TypeError。修复：`Path(config_dir)` 确保类型
+- **GUI 启动跳过 session 创建** — `main.py` 中 `load_image()` 不经过 `_load_single_file()`，左侧图片列表空白。修复：改为调用 `_load_single_file()`
+- **导出文件名模板未使用** — ExportDialog 有模板输入框但 `_on_export()` 硬编码格式。修复：从 config 读取模板并解析 `{name}`/`{page}`/`{index}`/`{ext}` 变量
+
+### 代码质量
+
+- **_pil_to_qimage 去重** — 4 个文件中的重复 `_pil_to_qimage` / `_pil_to_pixmap` 实现抽取到新建的 `ui/utils.py`，统一调用
+
+---
+
 ## v0.5.0 — 多图像管理 + 属性面板 + 批量导出 + Single View + 模板系统（2026-05-06）
 
 ### 阶段一：核心体验

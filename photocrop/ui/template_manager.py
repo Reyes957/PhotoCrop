@@ -29,8 +29,8 @@ class TemplateManager:
     def __init__(self, config_dir: Optional[Path] = None):
         if config_dir is None:
             config_dir = Path.home() / ".config" / "photocrop"
-        self._config_dir = config_dir
-        self._templates_file = config_dir / "templates.json"
+        self._config_dir = Path(config_dir)
+        self._templates_file = self._config_dir / "templates.json"
         self._templates: List[CropTemplate] = []
         self._load()
 

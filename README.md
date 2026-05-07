@@ -146,7 +146,8 @@ photocrop/
   │   ├── extracted_images_panel.py Crop result preview (2-column grid + LRU cache)
   │   ├── single_view_panel.py Single View: thumbnail + full-size preview
   │   ├── export_dialog.py     Batch export settings dialog
-  │   └── template_manager.py  Crop template manager (percentage coordinates)
+  │   ├── template_manager.py  Crop template manager (percentage coordinates)
+  │   └── utils.py             PIL <-> Qt image conversion (pil_to_qimage / pil_to_pixmap)
   │
   ├── export/              Output layer
   │   ├── cropper.py       Crop -> rotate -> trim -> save

@@ -146,7 +146,8 @@ photocrop/
   │   ├── extracted_images_panel.py 裁剪结果预览（2 列网格 + LRU 缓存）
   │   ├── single_view_panel.py Single View 大图预览
   │   ├── export_dialog.py     批量导出设置对话框
-  │   └── template_manager.py  裁剪框模板管理器（百分比坐标）
+  │   ├── template_manager.py  裁剪框模板管理器（百分比坐标）
+  │   └── utils.py             PIL <-> Qt 图像转换工具函数
   │
   ├── export/          导出层
   │   ├── cropper.py      裁剪 → 旋转 → 去白边 → 保存

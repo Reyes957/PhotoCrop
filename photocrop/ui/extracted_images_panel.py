@@ -13,6 +13,8 @@ from typing import Optional, List
 from PIL import Image
 from PySide6.QtCore import Qt, Signal, QSize, QTimer
 from PySide6.QtGui import QPixmap, QImage
+
+from photocrop.ui.utils import pil_to_pixmap
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -230,7 +232,7 @@ class ExtractedImagesPanel(QWidget):
         try:
             cropped = export_photo_to_memory(self._source_image, rect)
             cropped.thumbnail((80, 80), Image.Resampling.LANCZOS)
-            pixmap = self._pil_to_pixmap(cropped)
+            pixmap = pil_to_pixmap(cropped)
             # 限制缓存大小
             if len(self._cache) > 128:
                 self._cache.clear()
@@ -247,16 +249,3 @@ class ExtractedImagesPanel(QWidget):
             else "  EXTRACTED IMAGES  ▾"
         )
 
-    @staticmethod
-    def _pil_to_pixmap(img: Image.Image) -> QPixmap:
-        if img.mode == "RGBA":
-            img = img.convert("RGBA")
-            data = img.tobytes("raw", "RGBA")
-            bpl = img.width * 4
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGBA8888)
-        else:
-            img = img.convert("RGB")
-            data = img.tobytes("raw", "RGB")
-            bpl = img.width * 3
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGB888)
-        return QPixmap.fromImage(qimage.copy())

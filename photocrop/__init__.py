@@ -6,9 +6,10 @@ v0.2.0: UI 交互 — PySide6 画布 + 可交互裁剪框
 v0.3.0: 导出功能 — 裁剪 + 旋转 + 去白边 + PDF 读取
 v0.4.0: UI 体验 + 工程化基础设施 — 撤销/重做、配置系统、投票融合、CI/CD
 v0.5.0: 多图像管理 + 属性面板 + 批量导出 + Single View + 模板系统
+v0.5.1: Bug 修复 — 撤销支持、属性面板、build-backend、导出模板、代码去重
 """
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 from photocrop.utils.crop_rect import CropRect
 

@@ -13,6 +13,8 @@ from typing import Optional
 from PIL import Image
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QPixmap, QImage
+
+from photocrop.ui.utils import pil_to_pixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
@@ -151,7 +153,7 @@ class ImageListPanel(QWidget):
         thumb_label.setFixedSize(44, 44)
         thumb_label.setStyleSheet("border-radius: 4px; background: #3a3a3c;")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pixmap = self._pil_to_pixmap(thumbnail).scaled(
+        pixmap = pil_to_pixmap(thumbnail).scaled(
             44, 44, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
@@ -274,17 +276,3 @@ class ImageListPanel(QWidget):
         elif chosen == action_remove:
             self.remove_requested.emit(key)
 
-    @staticmethod
-    def _pil_to_pixmap(img: Image.Image) -> QPixmap:
-        """PIL Image → QPixmap"""
-        if img.mode == "RGBA":
-            img = img.convert("RGBA")
-            data = img.tobytes("raw", "RGBA")
-            bpl = img.width * 4
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGBA8888)
-        else:
-            img = img.convert("RGB")
-            data = img.tobytes("raw", "RGB")
-            bpl = img.width * 3
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGB888)
-        return QPixmap.fromImage(qimage.copy())

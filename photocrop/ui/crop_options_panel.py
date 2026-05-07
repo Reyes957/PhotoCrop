@@ -233,6 +233,10 @@ class CropOptionsPanel(QWidget):
             rect: 选中的 CropRect，或 None（取消选中）
             image_size: 源图尺寸 (width, height)，用于限制 SpinBox 范围
         """
+        # 防御：如果传入 None 但当前已有数据，不覆盖（避免信号重复触发导致面板空白）
+        if rect is None and self._current_rect is not None:
+            return
+
         self._current_rect = rect
         self._current_image_size = image_size
 

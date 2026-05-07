@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from photocrop.engine.core import detect_rectangles
 from photocrop.ui.crop_item import CropItem, HandlePosition
 from photocrop.ui.undo_manager import UndoManager
+from photocrop.ui.utils import pil_to_qimage
 from photocrop.utils.crop_rect import CropRect
 
 
@@ -184,7 +185,7 @@ class CropCanvas(QGraphicsView):
             self._scene.removeItem(self._pixmap_item)
 
         # 显示新图片
-        qimage = self._pil_to_qimage(img)
+        qimage = pil_to_qimage(img)
         pixmap = QPixmap.fromImage(qimage)
         self._pixmap_item = self._scene.addPixmap(pixmap)
 
@@ -213,20 +214,6 @@ class CropCanvas(QGraphicsView):
         """上一页"""
         if self._pdf_pages and self._current_page > 0:
             self._show_page(self._current_page - 1)
-
-    @staticmethod
-    def _pil_to_qimage(img: Image.Image) -> QImage:
-        if img.mode == "RGBA":
-            img = img.convert("RGBA")
-            data = img.tobytes("raw", "RGBA")
-            bpl = img.width * 4
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGBA8888)
-        else:
-            img = img.convert("RGB")
-            data = img.tobytes("raw", "RGB")
-            bpl = img.width * 3
-            qimage = QImage(data, img.width, img.height, bpl, QImage.Format.Format_RGB888)
-        return qimage.copy()
 
     # ---- 撤销/重做 ----
 
@@ -296,6 +283,7 @@ class CropCanvas(QGraphicsView):
 
     def clear_crops(self) -> None:
         """清除所有裁剪框（保留图片）"""
+        self._push_undo_state()  # 保存清除前的状态，支持撤销
         for item in self._crop_items[:]:
             self._scene.removeItem(item)
         self._crop_items.clear()
@@ -521,6 +509,7 @@ class CropCanvas(QGraphicsView):
                     )
                     crop_rect.source_type = "manual"
                     self._add_crop_item(crop_rect)
+                    self._push_undo_state()  # 保存新建后的状态，支持撤销
                     self.rects_changed.emit()
 
                 self._scene.removeItem(self._temp_rect)

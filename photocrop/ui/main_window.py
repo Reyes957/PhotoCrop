@@ -699,6 +699,7 @@ class MainWindow(QMainWindow):
         max_h = config["max_height"]
         auto_rotate = config["auto_rotate"]
         trim_white = config["trim_white"]
+        template = config.get("template", "{name}_{index:02d}.{ext}")
         scope = config["scope"]
 
         exported = 0
@@ -713,7 +714,11 @@ class MainWindow(QMainWindow):
                 source_name = self._canvas.source_path.stem
 
             for i, rect in enumerate(rects):
-                out_name = f"{source_name}_{i + 1:02d}{suffix}"
+                out_name = template.replace("{name}", source_name) \
+                                   .replace("{page}", "1") \
+                                   .replace("{index:02d}", f"{i + 1:02d}") \
+                                   .replace("{index}", str(i + 1)) \
+                                   .replace("{ext}", suffix.lstrip("."))
                 out_path = output_dir / out_name
                 try:
                     export_photo(source_img, rect, out_path,
@@ -737,7 +742,11 @@ class MainWindow(QMainWindow):
                 page = sess.current_pdf_page if sess.is_pdf else 0
 
                 for i, rect in enumerate(rects):
-                    out_name = f"{source_name}_{page}_{i + 1:02d}{suffix}"
+                    out_name = template.replace("{name}", source_name) \
+                                       .replace("{page}", str(page + 1)) \
+                                       .replace("{index:02d}", f"{i + 1:02d}") \
+                                       .replace("{index}", str(i + 1)) \
+                                       .replace("{ext}", suffix.lstrip("."))
                     out_path = output_dir / out_name
                     try:
                         export_photo(source_img, rect, out_path,
@@ -769,14 +778,14 @@ class MainWindow(QMainWindow):
     def _on_selection_changed(self) -> None:
         """Canvas 选中变化 → 更新 CropOptionsPanel"""
         selected = self._canvas.selected_items
-        if selected:
-            rect = selected[-1].crop_rect
-            img_size = (0, 0)
-            if self._canvas.source_image:
-                img_size = self._canvas.source_image.size
-            self._crop_options_panel.set_selected_rect(rect, img_size)
-        else:
-            self._crop_options_panel.set_selected_rect(None)
+        if not selected:
+            return  # 没有选中时不操作，避免 None 覆盖已有选中状态
+
+        rect = selected[-1].crop_rect
+        img_size = (0, 0)
+        if self._canvas.source_image:
+            img_size = self._canvas.source_image.size
+        self._crop_options_panel.set_selected_rect(rect, img_size)
 
     def _on_crop_options_changed(self) -> None:
         """CropOptionsPanel 实时修改 → 刷新画布"""
