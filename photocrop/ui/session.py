@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
 
 from PIL import Image
 
@@ -21,7 +20,7 @@ class ImageSession:
 
     source_path: Path
     source_image: Image.Image
-    crop_rects: List[CropRect] = field(default_factory=list)
+    crop_rects: list[CropRect] = field(default_factory=list)
     undo_snapshot: list = field(default_factory=list)  # UndoManager.serialize() 的结果
     pdf_pages: list = field(default_factory=list)       # 如果是 PDF，存储所有页面
     current_pdf_page: int = 0

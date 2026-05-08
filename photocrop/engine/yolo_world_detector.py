@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import List, Optional
 
 from PIL import Image
 
@@ -74,7 +73,7 @@ class YOLOWorldDetector(BaseDetector):
 
     def __init__(
         self,
-        prompts: Optional[List[str]] = None,
+        prompts: list[str] | None = None,
         model_size: str = DEFAULT_MODEL_SIZE,
         confidence: float = 0.1,
     ):
@@ -107,14 +106,14 @@ class YOLOWorldDetector(BaseDetector):
         # 检查 ultralytics
         try:
             from ultralytics import YOLO
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "ultralytics 未安装。请运行:\n"
                 "  bash install_yolo.sh\n"
                 "或手动:\n"
                 "  pip install torch torchvision --user\n"
                 "  pip install ultralytics --user"
-            )
+            ) from err
 
         # 检查 CLIP（ultralytics 8.2+ 可能已内置）
         try:
@@ -123,11 +122,11 @@ class YOLOWorldDetector(BaseDetector):
             try:
                 from ultralytics.utils.checks import check_requirements
                 check_requirements("git+https://github.com/ultralytics/CLIP.git")
-            except (ImportError, Exception):
+            except (ImportError, Exception) as err:
                 raise ImportError(
                     "CLIP 未安装（YOLO-World 依赖）。请运行:\n"
                     "  pip install git+https://github.com/ultralytics/CLIP.git --user"
-                )
+                ) from err
 
         os.environ["ULTRALYTICS_AUTO_UPDATE"] = "0"
 
@@ -196,7 +195,7 @@ class YOLOWorldDetector(BaseDetector):
         """模型是否已加载"""
         return self._model is not None
 
-    def detect(self, page_img: Image.Image) -> List[CropRect]:
+    def detect(self, page_img: Image.Image) -> list[CropRect]:
         """使用 YOLO-World 检测照片
 
         Args:

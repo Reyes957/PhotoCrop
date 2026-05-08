@@ -8,24 +8,23 @@ ExportDialog — 批量导出设置对话框
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QSpinBox,
-    QSlider,
     QLineEdit,
     QPushButton,
-    QFileDialog,
-    QCheckBox,
-    QGroupBox,
+    QSlider,
+    QSpinBox,
+    QVBoxLayout,
     QWidget,
-    QFormLayout,
 )
 
 # ============================================================
@@ -47,7 +46,7 @@ class ExportDialog(QDialog):
     """
 
     def __init__(self, current_page_crops: int, total_crops: int,
-                 parent: Optional[QWidget] = None):
+                 parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("导出设置")
         self.setMinimumWidth(420)

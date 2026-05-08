@@ -10,12 +10,10 @@ CVDetector（detector_base.py 的实现）调用本模块的 extract_photos_from
 3. extract_photos_from_page() → 综合以上两步
 """
 
-from typing import List, Tuple
 
 import numpy as np
 from PIL import Image
 from scipy import ndimage
-
 
 # ============================================================
 # 命名常量（原 magic numbers）
@@ -50,7 +48,7 @@ MIN_MERGED_BOX_SIZE = 200     # 合并框最小尺寸
 # 场景分类
 # ============================================================
 
-def classify_scene(page_img: Image.Image) -> List[Tuple[int, int, int, int]]:
+def classify_scene(page_img: Image.Image) -> list[tuple[int, int, int, int]]:
     """
     将页面划分为互不重叠的场景区域（照片所在的矩形区域）。
 
@@ -140,8 +138,8 @@ def classify_scene(page_img: Image.Image) -> List[Tuple[int, int, int, int]]:
 
 def detect_photos_in_scene(
     page_img: Image.Image,
-    scene_box: Tuple[int, int, int, int]
-) -> List[Tuple[int, int, int, int]]:
+    scene_box: tuple[int, int, int, int]
+) -> list[tuple[int, int, int, int]]:
     """
     在单个场景区域内检测照片（支持 1~4 张不同排列方式）。
 
@@ -247,7 +245,7 @@ def detect_photos_in_scene(
             box_gray = np.mean(box_arr, axis=2) if box_arr.ndim == 3 else box_arr
 
             # 照片评分：内容多、纹理丰富、不过度空白
-            mean_val = np.mean(box_gray)
+            np.mean(box_gray)
             std_val = np.std(box_gray)
 
             # 内容分：非空白区域比例
@@ -328,7 +326,7 @@ def detect_photos_in_scene(
 # 页面级照片提取
 # ============================================================
 
-def extract_photos_from_page(page_img: Image.Image) -> List[Tuple[int, int, int, int]]:
+def extract_photos_from_page(page_img: Image.Image) -> list[tuple[int, int, int, int]]:
     """从单页提取所有照片的边界框，按位置排序
 
     Args:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 PDF 读取模块 — 将 PDF 页面渲染为 PIL Image
 
@@ -6,7 +7,6 @@ PDF 读取模块 — 将 PDF 页面渲染为 PIL Image
 """
 
 from pathlib import Path
-from typing import List, Tuple
 
 from PIL import Image
 
@@ -14,7 +14,7 @@ from PIL import Image
 def pdf_to_images(
     pdf_path: str | Path,
     dpi: int = 200,
-) -> List[Tuple[int, Image.Image]]:
+) -> list[tuple[int, Image.Image]]:
     """将 PDF 的每一页渲染为 PIL Image
 
     Args:
@@ -26,16 +26,16 @@ def pdf_to_images(
     """
     try:
         import fitz  # PyMuPDF
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
             "PyMuPDF 未安装。请运行: pip install PyMuPDF"
-        )
+        ) from err
 
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF 文件不存在: {pdf_path}")
 
-    images: List[Tuple[int, Image.Image]] = []
+    images: list[tuple[int, Image.Image]] = []
 
     doc = fitz.open(str(pdf_path))
     try:

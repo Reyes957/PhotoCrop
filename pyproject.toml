@@ -57,6 +57,7 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "E402",  # module level import not at top (from __future__ before docstring)
 ]
 
 [tool.ruff.lint.isort]

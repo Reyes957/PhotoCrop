@@ -6,9 +6,9 @@
 """
 
 from photocrop.engine.rotation_estimator import (  # noqa: F401
-    estimate_rotation_angle,
-    estimate_from_array,
     estimate_batch,
+    estimate_from_array,
+    estimate_rotation_angle,
 )
 
 __all__ = ["estimate_rotation_angle", "estimate_from_array", "estimate_batch"]

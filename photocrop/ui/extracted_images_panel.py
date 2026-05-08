@@ -7,25 +7,21 @@ ExtractedImagesPanel — 裁剪结果预览面板
 
 from __future__ import annotations
 
-import functools
-from typing import Optional, List
-
 from PIL import Image
-from PySide6.QtCore import Qt, Signal, QSize, QTimer
-from PySide6.QtGui import QPixmap, QImage
-
-from photocrop.ui.utils import pil_to_pixmap
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QScrollArea,
-    QGridLayout,
     QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
 
 from photocrop.export.cropper import export_photo_to_memory
+from photocrop.ui.utils import pil_to_pixmap
 from photocrop.utils.crop_rect import CropRect
 
 # ============================================================
@@ -52,7 +48,7 @@ class ExtractedImagesPanel(QWidget):
     crop_selected = Signal(int)
     crop_delete_requested = Signal(int)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setStyleSheet(f"""
             ExtractedImagesPanel {{
@@ -60,8 +56,8 @@ class ExtractedImagesPanel(QWidget):
             }}
         """)
 
-        self._source_image: Optional[Image.Image] = None
-        self._crop_rects: List[CropRect] = []
+        self._source_image: Image.Image | None = None
+        self._crop_rects: list[CropRect] = []
         self._cache: dict = {}  # key → QPixmap
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -96,19 +92,19 @@ class ExtractedImagesPanel(QWidget):
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._scroll.setStyleSheet(f"""
-            QScrollArea {{
+        self._scroll.setStyleSheet("""
+            QScrollArea {
                 background-color: transparent;
                 border: none;
-            }}
-            QScrollBar:vertical {{
+            }
+            QScrollBar:vertical {
                 width: 6px;
                 background: transparent;
-            }}
-            QScrollBar::handle:vertical {{
+            }
+            QScrollBar::handle:vertical {
                 background: rgba(255,255,255,0.2);
                 border-radius: 3px;
-            }}
+            }
         """)
 
         self._grid_widget = QWidget()
@@ -121,13 +117,13 @@ class ExtractedImagesPanel(QWidget):
 
         self._collapsed = False
 
-    def set_source_image(self, img: Optional[Image.Image]) -> None:
+    def set_source_image(self, img: Image.Image | None) -> None:
         """设置源图像"""
         if img is not self._source_image:
             self._source_image = img
             self._cache.clear()
 
-    def refresh(self, crop_rects: List[CropRect]) -> None:
+    def refresh(self, crop_rects: list[CropRect]) -> None:
         """请求刷新（防抖 100ms）"""
         self._crop_rects = list(crop_rects)
         self._refresh_timer.start(100)
@@ -220,7 +216,7 @@ class ExtractedImagesPanel(QWidget):
 
         return card
 
-    def _get_thumbnail(self, index: int, rect: CropRect) -> Optional[QPixmap]:
+    def _get_thumbnail(self, index: int, rect: CropRect) -> QPixmap | None:
         """获取缩略图（带缓存）"""
         if self._source_image is None:
             return None

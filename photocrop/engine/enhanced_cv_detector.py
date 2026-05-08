@@ -13,7 +13,6 @@ EnhancedCVDetector — 增强版 CV 检测器
 from __future__ import annotations
 
 import warnings
-from typing import List, Tuple
 
 import cv2
 import numpy as np
@@ -32,7 +31,7 @@ class EnhancedCVDetector(BaseDetector):
         min_area_ratio: float = 0.01,
         max_area_ratio: float = 0.95,
         min_rectangularity: float = 0.7,
-        aspect_ratio_range: Tuple[float, float] = (0.2, 5.0),
+        aspect_ratio_range: tuple[float, float] = (0.2, 5.0),
     ):
         warnings.warn(
             "EnhancedCVDetector 已废弃，检测效果不如原始 CVDetector。"
@@ -49,7 +48,7 @@ class EnhancedCVDetector(BaseDetector):
     def name(self) -> str:
         return "enhanced-cv"
 
-    def detect(self, page_img: Image.Image) -> List[CropRect]:
+    def detect(self, page_img: Image.Image) -> list[CropRect]:
         """检测页面中的照片矩形"""
         if page_img.mode not in ("RGB", "L"):
             page_img = page_img.convert("RGB")
@@ -161,7 +160,7 @@ class EnhancedCVDetector(BaseDetector):
 
         return CropRect.from_pixel_rect(x1, y1, x2, y2, rotation_angle=0.0)
 
-    def _merge_candidates(self, candidates, w, h) -> List[CropRect]:
+    def _merge_candidates(self, candidates, w, h) -> list[CropRect]:
         """合并重叠的候选框"""
         if not candidates:
             return []

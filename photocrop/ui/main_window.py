@@ -12,11 +12,10 @@ Apple 设计风格：
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from PIL import Image
-from PySide6.QtCore import Qt, QSize, QTimer
-from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -27,25 +26,23 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QStackedWidget,
     QStatusBar,
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QSizePolicy,
 )
 
 from photocrop.export.cropper import export_photo
 from photocrop.ui.canvas import CropCanvas
-from photocrop.ui.crop_item import CropItem
-from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.crop_options_panel import CropOptionsPanel
-from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
-from photocrop.ui.single_view_panel import SingleViewPanel
 from photocrop.ui.export_dialog import ExportDialog
+from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
+from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.session import ImageSession
-
+from photocrop.ui.single_view_panel import SingleViewPanel
 
 # ============================================================
 # Apple 设计常量
@@ -245,7 +242,7 @@ class MainWindow(QMainWindow):
 
         # 多图像会话管理
         self._sessions: dict = {}       # key=path_str → ImageSession
-        self._current_key: Optional[str] = None
+        self._current_key: str | None = None
 
         # 防抖定时器 — 避免 rects_changed 信号风暴导致按钮闪烁
         self._update_timer = QTimer(self)

@@ -7,20 +7,17 @@ CropOptionsPanel — 裁剪框属性编辑面板
 
 from __future__ import annotations
 
-from typing import Optional, List
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
-    QComboBox,
-    QSpinBox,
-    QDoubleSpinBox,
     QPushButton,
-    QFormLayout,
-    QSizePolicy,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
 from photocrop.utils.crop_rect import CropRect
@@ -48,7 +45,7 @@ class CropOptionsPanel(QWidget):
     editing_finished = Signal()
     aspect_ratio_changed = Signal(float)  # 发出 ratio 值（None → -1, Free → 0, 具体值 → ratio）
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setFixedWidth(220)
         self.setStyleSheet(f"""
@@ -58,7 +55,7 @@ class CropOptionsPanel(QWidget):
         """)
 
         self._block_signals = False
-        self._current_rect: Optional[CropRect] = None
+        self._current_rect: CropRect | None = None
         self._current_image_size: tuple = (0, 0)
 
         layout = QVBoxLayout(self)
@@ -225,7 +222,7 @@ class CropOptionsPanel(QWidget):
 
         layout.addStretch()
 
-    def set_selected_rect(self, rect: Optional[CropRect],
+    def set_selected_rect(self, rect: CropRect | None,
                           image_size: tuple = (0, 0)) -> None:
         """设置当前选中的裁剪框
 

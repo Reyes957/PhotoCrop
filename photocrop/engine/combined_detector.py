@@ -12,12 +12,10 @@ CombinedDetector — 组合检测器（IoU 投票融合）
 
 from __future__ import annotations
 
-from typing import List
-
 from PIL import Image
 
-from photocrop.engine.detector_base import BaseDetector
 from photocrop.engine.cv_detector import CVDetector
+from photocrop.engine.detector_base import BaseDetector
 from photocrop.engine.enhanced_cv_detector import EnhancedCVDetector
 from photocrop.utils.crop_rect import CropRect
 from photocrop.utils.iou import compute_iou
@@ -35,7 +33,7 @@ class CombinedDetector(BaseDetector):
     def name(self) -> str:
         return "combined"
 
-    def detect(self, page_img: Image.Image) -> List[CropRect]:
+    def detect(self, page_img: Image.Image) -> list[CropRect]:
         """运行两种检测器，IoU 投票融合"""
         rects_cv = self._cv.detect(page_img)
         rects_enh = self._enhanced.detect(page_img)

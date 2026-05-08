@@ -15,8 +15,8 @@ v0.4.0 核心组件：
     - template_manager.TemplateManager  模板管理器
 """
 
-from photocrop.ui.main_window import MainWindow
 from photocrop.ui.canvas import CropCanvas
 from photocrop.ui.crop_item import CropItem
+from photocrop.ui.main_window import MainWindow
 
 __all__ = ["MainWindow", "CropCanvas", "CropItem"]

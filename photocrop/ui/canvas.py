@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 CropCanvas — 图像显示 + 裁剪框管理画布
 
@@ -9,17 +10,15 @@ Apple 设计风格：
 """
 
 from pathlib import Path
-from typing import List, Optional
 
 from PIL import Image
-from PySide6.QtCore import Qt, QRectF, QPointF, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
     QColor,
-    QImage,
     QPainter,
-    QPixmap,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
@@ -28,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from photocrop.engine.core import detect_rectangles
-from photocrop.ui.crop_item import CropItem, HandlePosition
+from photocrop.ui.crop_item import CropItem
 from photocrop.ui.undo_manager import UndoManager
 from photocrop.ui.utils import pil_to_qimage
 from photocrop.utils.crop_rect import CropRect
@@ -57,16 +56,16 @@ class CropCanvas(QGraphicsView):
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
 
-        self._pixmap_item: Optional[QGraphicsPixmapItem] = None
-        self._source_image: Optional[Image.Image] = None
-        self._source_path: Optional[Path] = None
-        self._crop_items: List[CropItem] = []
+        self._pixmap_item: QGraphicsPixmapItem | None = None
+        self._source_image: Image.Image | None = None
+        self._source_path: Path | None = None
+        self._crop_items: list[CropItem] = []
 
         # 撤销/重做
         self._undo_manager = UndoManager()
 
         # PDF 页面管理
-        self._pdf_pages: List[Image.Image] = []
+        self._pdf_pages: list[Image.Image] = []
         self._current_page: int = 0
 
         # 框选状态
@@ -92,19 +91,19 @@ class CropCanvas(QGraphicsView):
         self._scene.selectionChanged.connect(self._on_selection_changed)
 
     @property
-    def source_image(self) -> Optional[Image.Image]:
+    def source_image(self) -> Image.Image | None:
         return self._source_image
 
     @property
-    def source_path(self) -> Optional[Path]:
+    def source_path(self) -> Path | None:
         return self._source_path
 
     @property
-    def crop_items(self) -> List[CropItem]:
+    def crop_items(self) -> list[CropItem]:
         return list(self._crop_items)
 
     @property
-    def crop_rects(self) -> List[CropRect]:
+    def crop_rects(self) -> list[CropRect]:
         return [item.crop_rect for item in self._crop_items]
 
     @property
@@ -145,8 +144,8 @@ class CropCanvas(QGraphicsView):
         try:
             from photocrop.export.pdf_reader import pdf_to_images
             self._pdf_pages = pdf_to_images(path, dpi=200)
-        except ImportError:
-            raise ImportError("PyMuPDF 未安装，无法加载 PDF")
+        except ImportError as err:
+            raise ImportError("PyMuPDF 未安装，无法加载 PDF") from err
 
         if not self._pdf_pages:
             raise ValueError("PDF 没有可读取的页面")
@@ -229,7 +228,7 @@ class CropCanvas(QGraphicsView):
         if rects is not None:
             self._restore_rects(rects)
 
-    def _restore_rects(self, rects: List[CropRect]) -> None:
+    def _restore_rects(self, rects: list[CropRect]) -> None:
         """用给定的 CropRect 列表替换当前所有裁剪框"""
         for item in self._crop_items[:]:
             self._scene.removeItem(item)
@@ -350,12 +349,12 @@ class CropCanvas(QGraphicsView):
         self.selection_changed.emit()
 
     @property
-    def selected_items(self) -> List[CropItem]:
+    def selected_items(self) -> list[CropItem]:
         """返回当前选中的 CropItem 列表"""
         return [it for it in self._crop_items if it.isSelected()]
 
     @property
-    def selected_crop_rects(self) -> List[CropRect]:
+    def selected_crop_rects(self) -> list[CropRect]:
         """返回当前选中的 CropRect 列表"""
         return [it.crop_rect for it in self._crop_items if it.isSelected()]
 

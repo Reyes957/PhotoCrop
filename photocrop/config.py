@@ -14,10 +14,8 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +79,7 @@ def _load_yaml(path: Path) -> dict:
         return {}
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else {}
     except Exception as e:
@@ -89,7 +87,7 @@ def _load_yaml(path: Path) -> dict:
         return {}
 
 
-def load_config(path: Optional[Path] = None) -> PhotoCropConfig:
+def load_config(path: Path | None = None) -> PhotoCropConfig:
     """加载用户配置
 
     Args:
@@ -123,7 +121,7 @@ def load_config(path: Optional[Path] = None) -> PhotoCropConfig:
     return cfg
 
 
-def save_config(cfg: PhotoCropConfig, path: Optional[Path] = None) -> None:
+def save_config(cfg: PhotoCropConfig, path: Path | None = None) -> None:
     """保存配置到文件
 
     Args:
@@ -145,7 +143,7 @@ def save_config(cfg: PhotoCropConfig, path: Optional[Path] = None) -> None:
 
 
 # 全局配置单例
-_global_config: Optional[PhotoCropConfig] = None
+_global_config: PhotoCropConfig | None = None
 
 
 def get_config() -> PhotoCropConfig:

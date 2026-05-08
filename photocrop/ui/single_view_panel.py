@@ -9,26 +9,23 @@ SingleViewPanel — 单个裁剪框大图预览
 
 from __future__ import annotations
 
-from typing import Optional, List
-
 from PIL import Image
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap, QImage, QPen, QColor, QBrush, QPainter
-
-from photocrop.ui.utils import pil_to_qimage, pil_to_pixmap
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QPushButton,
-    QGraphicsScene,
-    QGraphicsView,
     QGraphicsPixmapItem,
     QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsView,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from photocrop.export.cropper import export_photo_to_memory
+from photocrop.ui.utils import pil_to_pixmap, pil_to_qimage
 from photocrop.utils.crop_rect import CropRect
 
 # ============================================================
@@ -54,15 +51,15 @@ class SingleViewPanel(QWidget):
     selection_changed = Signal(int)
     exit_requested = Signal()
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setStyleSheet(f"background-color: {BG_COLOR};")
 
-        self._source_image: Optional[Image.Image] = None
-        self._crop_rects: List[CropRect] = []
+        self._source_image: Image.Image | None = None
+        self._crop_rects: list[CropRect] = []
         self._current_index: int = 0
-        self._pixmap_item: Optional[QGraphicsPixmapItem] = None
-        self._rect_items: List[QGraphicsRectItem] = []
+        self._pixmap_item: QGraphicsPixmapItem | None = None
+        self._rect_items: list[QGraphicsRectItem] = []
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -184,7 +181,7 @@ class SingleViewPanel(QWidget):
 
         main_layout.addWidget(right_panel, 1)
 
-    def set_data(self, source_image: Image.Image, crop_rects: List[CropRect]) -> None:
+    def set_data(self, source_image: Image.Image, crop_rects: list[CropRect]) -> None:
         """设置源图和裁剪框数据"""
         self._source_image = source_image
         self._crop_rects = list(crop_rects)

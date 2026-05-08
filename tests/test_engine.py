@@ -17,23 +17,21 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from photocrop.engine.core import detect_rectangles, detect_from_pdf_page, summarize
-from photocrop.engine.filters import (
-    iou_deduplicate,
-    filter_small_rects,
-    filter_extreme_aspect,
-    limit_count,
-)
-from photocrop.utils.iou import compute_iou
-from photocrop.engine.rotation_estimator import estimate_rotation_angle
+from photocrop.engine.core import detect_rectangles, summarize
 from photocrop.engine.cv_algorithm import (
     classify_scene,
     detect_photos_in_scene,
-    extract_photos_from_page,
 )
+from photocrop.engine.filters import (
+    filter_extreme_aspect,
+    filter_small_rects,
+    iou_deduplicate,
+    limit_count,
+)
+from photocrop.engine.rotation_estimator import estimate_rotation_angle
 from photocrop.utils.crop_rect import CropRect
-from photocrop.utils.rotation import to_opencv_angle, normalize_angle, angle_within_tolerance
-
+from photocrop.utils.iou import compute_iou
+from photocrop.utils.rotation import angle_within_tolerance, normalize_angle, to_opencv_angle
 
 # ============================================================
 # Fixtures

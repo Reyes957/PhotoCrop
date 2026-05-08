@@ -6,7 +6,6 @@
 - OpenCV 角度转换必须使用 to_opencv_angle()
 """
 
-import math
 
 
 def to_opencv_angle(clockwise_degrees: float) -> float:

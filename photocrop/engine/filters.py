@@ -5,7 +5,6 @@
   检测流程中的第 3、4、5 步
 """
 
-from typing import List
 
 from photocrop.utils.crop_rect import CropRect
 from photocrop.utils.iou import compute_iou  # 统一 IoU 实现
@@ -20,9 +19,9 @@ __all__ = ["compute_iou", "iou_deduplicate", "filter_small_rects",
 # ============================================================
 
 def iou_deduplicate(
-    rects: List[CropRect],
+    rects: list[CropRect],
     iou_threshold: float = 0.7
-) -> List[CropRect]:
+) -> list[CropRect]:
     """IoU 去重：移除高度重叠的检测框
 
     按置信度降序排列，保留置信度最高的框，
@@ -47,7 +46,7 @@ def iou_deduplicate(
         reverse=True
     )
 
-    kept: List[CropRect] = []
+    kept: list[CropRect] = []
     suppressed = set()
 
     for i, rect_a in enumerate(sorted_rects):
@@ -69,11 +68,11 @@ def iou_deduplicate(
 # ============================================================
 
 def filter_small_rects(
-    rects: List[CropRect],
+    rects: list[CropRect],
     min_width: float = 100,
     min_height: float = 100,
     min_area: float = 10000
-) -> List[CropRect]:
+) -> list[CropRect]:
     """过滤尺寸过小的检测框（碎片、噪点）
 
     Args:
@@ -98,9 +97,9 @@ def filter_small_rects(
 # ============================================================
 
 def filter_extreme_aspect(
-    rects: List[CropRect],
+    rects: list[CropRect],
     max_aspect_ratio: float = 3.5
-) -> List[CropRect]:
+) -> list[CropRect]:
     """过滤过度拉伸的框（不太可能是正常照片）
 
     Args:
@@ -123,9 +122,9 @@ def filter_extreme_aspect(
 # ============================================================
 
 def limit_count(
-    rects: List[CropRect],
+    rects: list[CropRect],
     max_count: int = 4
-) -> List[CropRect]:
+) -> list[CropRect]:
     """限制返回的检测框数量
 
     保留置信度最高（或面积最大）的 N 个框。

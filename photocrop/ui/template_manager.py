@@ -8,9 +8,8 @@ TemplateManager — 裁剪框模板管理
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 from photocrop.utils.crop_rect import CropRect
 
@@ -19,23 +18,23 @@ from photocrop.utils.crop_rect import CropRect
 class CropTemplate:
     """裁剪框模板"""
     name: str
-    rects: List[dict] = field(default_factory=list)  # 百分比坐标: {x, y, w, h, rotation}
-    aspect_ratio: Optional[float] = None
+    rects: list[dict] = field(default_factory=list)  # 百分比坐标: {x, y, w, h, rotation}
+    aspect_ratio: float | None = None
 
 
 class TemplateManager:
     """模板管理器"""
 
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Path | None = None):
         if config_dir is None:
             config_dir = Path.home() / ".config" / "photocrop"
         self._config_dir = Path(config_dir)
         self._templates_file = self._config_dir / "templates.json"
-        self._templates: List[CropTemplate] = []
+        self._templates: list[CropTemplate] = []
         self._load()
 
     @property
-    def templates(self) -> List[CropTemplate]:
+    def templates(self) -> list[CropTemplate]:
         return list(self._templates)
 
     def _load(self) -> None:
@@ -66,7 +65,7 @@ class TemplateManager:
             encoding="utf-8",
         )
 
-    def save_template(self, name: str, crop_rects: List[CropRect],
+    def save_template(self, name: str, crop_rects: list[CropRect],
                       image_size: tuple) -> CropTemplate:
         """将当前裁剪框保存为模板（转换为百分比坐标）
 
@@ -92,7 +91,7 @@ class TemplateManager:
         return template
 
     def apply_template(self, template: CropTemplate,
-                       image_size: tuple) -> List[CropRect]:
+                       image_size: tuple) -> list[CropRect]:
         """将模板应用到指定尺寸的图片
 
         Args:

@@ -13,20 +13,17 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
-
 from PIL import Image
 
 from photocrop.engine.detector_base import BaseDetector
 from photocrop.engine.filters import (
+    filter_extreme_aspect,
     filter_small_rects,
     iou_deduplicate,
     limit_count,
-    filter_extreme_aspect,
 )
 from photocrop.engine.rotation_estimator import estimate_rotation_angle
 from photocrop.utils.crop_rect import CropRect
-
 
 # ============================================================
 # 默认参数
@@ -46,7 +43,7 @@ DEFAULT_MAX_COUNT = 4
 _detector_cache: dict[str, BaseDetector] = {}
 
 
-def get_detector(detector: Union[str, BaseDetector, None] = None) -> BaseDetector:
+def get_detector(detector: str | BaseDetector | None = None) -> BaseDetector:
     """获取检测器实例（字符串标识命中缓存，避免重复导入）
 
     Args:
@@ -96,7 +93,7 @@ def get_detector(detector: Union[str, BaseDetector, None] = None) -> BaseDetecto
 def detect_rectangles(
     page_img: Image.Image,
     *,
-    detector: Union[str, BaseDetector, None] = None,
+    detector: str | BaseDetector | None = None,
     min_width: float = DEFAULT_MIN_WIDTH,
     min_height: float = DEFAULT_MIN_HEIGHT,
     min_area: float = DEFAULT_MIN_AREA,
@@ -104,7 +101,7 @@ def detect_rectangles(
     max_count: int = DEFAULT_MAX_COUNT,
     estimate_rotation_flag: bool = True,
     apply_fallback: bool = True,
-) -> List[CropRect]:
+) -> list[CropRect]:
     """检测页面中的所有照片矩形
 
     这是引擎的对外主入口，执行完整的 5 步检测流程。
@@ -193,7 +190,7 @@ def detect_rectangles(
 # Fallback
 # ============================================================
 
-def _apply_page_fallback(page_img: Image.Image) -> List[CropRect]:
+def _apply_page_fallback(page_img: Image.Image) -> list[CropRect]:
     """Fallback：将整页作为一个 CropRect 返回"""
     w, h = page_img.size
     rect = CropRect.from_pixel_rect(0, 0, w, h, rotation_angle=0.0)
@@ -210,7 +207,7 @@ def detect_from_pdf_page(
     page_img: Image.Image,
     page_num: int = 0,
     **kwargs
-) -> List[CropRect]:
+) -> list[CropRect]:
     """从 PDF 的某一页检测照片（便捷封装）"""
     rects = detect_rectangles(page_img, **kwargs)
     for r in rects:
@@ -222,7 +219,7 @@ def detect_from_pdf_page(
 # 检测结果摘要
 # ============================================================
 
-def summarize(rects: List[CropRect]) -> str:
+def summarize(rects: list[CropRect]) -> str:
     """生成检测结果的可读摘要"""
     if not rects:
         return "未检测到任何照片矩形"

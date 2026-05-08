@@ -3,7 +3,7 @@
 """
 
 from photocrop.utils.crop_rect import CropRect
-from photocrop.utils.rotation import to_opencv_angle
 from photocrop.utils.iou import compute_iou
+from photocrop.utils.rotation import to_opencv_angle
 
 __all__ = ["CropRect", "to_opencv_angle", "compute_iou"]

@@ -14,8 +14,6 @@ ModelDetector — 模型检测器（通用占位）
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from PIL import Image
 
 from photocrop.engine.detector_base import BaseDetector
@@ -52,7 +50,7 @@ class ModelDetector(BaseDetector):
                 return rects
     """
 
-    def __init__(self, model_path: Optional[str] = None, **kwargs):
+    def __init__(self, model_path: str | None = None, **kwargs):
         self._model_path = model_path
         self._config = kwargs
 
@@ -60,7 +58,7 @@ class ModelDetector(BaseDetector):
     def name(self) -> str:
         return "model"
 
-    def detect(self, page_img: Image.Image) -> List[CropRect]:
+    def detect(self, page_img: Image.Image) -> list[CropRect]:
         """使用模型检测照片 — 当前为占位实现
 
         Args:

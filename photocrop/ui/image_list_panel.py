@@ -7,23 +7,19 @@ ImageListPanel — 左侧图像列表面板
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
-
 from PIL import Image
-from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtGui import QPixmap, QImage
-
-from photocrop.ui.utils import pil_to_pixmap
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QVBoxLayout,
     QWidget,
-    QLabel,
-    QMenu,
 )
+
+from photocrop.ui.utils import pil_to_pixmap
 
 # ============================================================
 # 样式常量
@@ -49,7 +45,7 @@ class ImageListPanel(QWidget):
     re_detect_requested = Signal(str)
     remove_requested = Signal(str)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setFixedWidth(220)
 

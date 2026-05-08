@@ -7,12 +7,10 @@ CVDetector — 传统 CV 算法检测器
 
 from __future__ import annotations
 
-from typing import List
-
 from PIL import Image
 
-from photocrop.engine.detector_base import BaseDetector
 from photocrop.engine.cv_algorithm import extract_photos_from_page
+from photocrop.engine.detector_base import BaseDetector
 from photocrop.utils.crop_rect import CropRect
 
 
@@ -27,7 +25,7 @@ class CVDetector(BaseDetector):
     def name(self) -> str:
         return "cv"
 
-    def detect(self, page_img: Image.Image) -> List[CropRect]:
+    def detect(self, page_img: Image.Image) -> list[CropRect]:
         """使用传统 CV 算法检测照片
 
         Args:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 裁剪导出模块 — 单张照片裁剪 + 旋转 + 去白边
 
@@ -18,16 +19,12 @@ from __future__ import annotations
 """
 
 from pathlib import Path
-from typing import Optional
 
-import cv2
 import numpy as np
 from PIL import Image
 
 from photocrop.engine.rotation_estimator import estimate_rotation_angle
 from photocrop.utils.crop_rect import CropRect
-from photocrop.utils.rotation import to_opencv_angle
-
 
 # ============================================================
 # 主导出函数

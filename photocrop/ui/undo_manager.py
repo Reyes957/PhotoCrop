@@ -14,7 +14,6 @@ UndoManager — 裁剪框操作的撤销/重做管理器
 from __future__ import annotations
 
 import copy
-from typing import List, Optional
 
 from photocrop.utils.crop_rect import CropRect
 
@@ -23,11 +22,11 @@ class UndoManager:
     """裁剪框撤销/重做管理器"""
 
     def __init__(self, max_history: int = 50):
-        self._undo_stack: List[List[CropRect]] = []
-        self._redo_stack: List[List[CropRect]] = []
+        self._undo_stack: list[list[CropRect]] = []
+        self._redo_stack: list[list[CropRect]] = []
         self._max_history = max_history
 
-    def push_state(self, rects: List[CropRect]) -> None:
+    def push_state(self, rects: list[CropRect]) -> None:
         """保存当前状态到撤销栈（清空重做栈）"""
         snapshot = [copy.deepcopy(r) for r in rects]
         self._undo_stack.append(snapshot)
@@ -35,7 +34,7 @@ class UndoManager:
             self._undo_stack.pop(0)
         self._redo_stack.clear()
 
-    def undo(self) -> Optional[List[CropRect]]:
+    def undo(self) -> list[CropRect] | None:
         """撤销，返回上一个状态（或 None 如果无法撤销）"""
         if len(self._undo_stack) < 2:
             return None  # 需要至少两帧：当前 + 上一个
@@ -48,7 +47,7 @@ class UndoManager:
         previous = self._undo_stack[-1]
         return [copy.deepcopy(r) for r in previous]
 
-    def redo(self) -> Optional[List[CropRect]]:
+    def redo(self) -> list[CropRect] | None:
         """重做，返回下一个状态（或 None 如果无法重做）"""
         if not self._redo_stack:
             return None
@@ -87,7 +86,7 @@ class UndoManager:
             for r in current
         ]
 
-    def deserialize(self, data: list) -> List[CropRect]:
+    def deserialize(self, data: list) -> list[CropRect]:
         """从 dict 列表恢复为 CropRect 列表，并推入 undo 栈作为初始状态
 
         用于多图像管理：切换图像时恢复裁剪框状态。

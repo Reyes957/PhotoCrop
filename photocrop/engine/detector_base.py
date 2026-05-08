@@ -13,7 +13,6 @@ engine/core.py 通过此接口调度不同检测器，实现可替换。
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
 
 from PIL import Image
 
@@ -42,7 +41,7 @@ class BaseDetector(ABC):
         return self.__class__.__name__
 
     @abstractmethod
-    def detect(self, page_img: Image.Image) -> List[CropRect]:
+    def detect(self, page_img: Image.Image) -> list[CropRect]:
         """检测页面中的照片矩形
 
         Args:

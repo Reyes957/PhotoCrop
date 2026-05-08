@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 """
 PhotoCrop — 从扫描页面中检测并裁剪照片
 
@@ -112,7 +113,7 @@ def run_cli(args) -> int:
 
     try:
         img = Image.open(args.image)
-    except (IOError, OSError, ValueError) as e:
+    except (OSError, ValueError) as e:
         print(f"错误：无法打开图片 — {e}", file=sys.stderr)
         return 1
 
@@ -212,7 +213,7 @@ def run_pdf(args) -> int:
                     trim_white=not args.no_trim,
                 )
                 total_exported += 1
-            except (IOError, OSError, ValueError, RuntimeError) as e:
+            except (OSError, ValueError, RuntimeError) as e:
                 print(f"导出失败 {out_name}: {e}", file=sys.stderr)
 
     print(f"\n完成: 共导出 {total_exported} 张照片到 {output_dir}")

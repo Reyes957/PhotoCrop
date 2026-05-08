@@ -14,9 +14,9 @@ Apple 设计风格：
 from __future__ import annotations
 
 import math
-from typing import Optional, Callable
+from typing import Callable
 
-from PySide6.QtCore import Qt, QRectF, QPointF
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
@@ -32,7 +32,6 @@ from PySide6.QtWidgets import (
 
 from photocrop.utils.crop_rect import CropRect
 from photocrop.utils.rotation import normalize_angle
-
 
 # ============================================================
 # Apple 设计常量
@@ -86,7 +85,7 @@ class HandlePosition:
 class CropItem(QGraphicsRectItem):
     """可交互裁剪框 — Apple 设计风格"""
 
-    def __init__(self, crop_rect: CropRect, parent: Optional[QGraphicsItem] = None):
+    def __init__(self, crop_rect: CropRect, parent: QGraphicsItem | None = None):
         super().__init__(parent)
 
         self._crop_rect = crop_rect
@@ -97,13 +96,13 @@ class CropItem(QGraphicsRectItem):
         self._is_toolbar_hovered = False
 
         # 宽高比锁定（None = Free，-1 = Original，>0 = 固定比值）
-        self.aspect_ratio_lock: Optional[float] = None
+        self.aspect_ratio_lock: float | None = None
 
         # 回调函数（替代 Signal）
-        self._on_changed: Optional[Callable] = None
-        self._on_deleted: Optional[Callable] = None
-        self._on_view_single: Optional[Callable] = None  # 切换到 Single View
-        self._on_copy: Optional[Callable] = None          # 复制此框
+        self._on_changed: Callable | None = None
+        self._on_deleted: Callable | None = None
+        self._on_view_single: Callable | None = None  # 切换到 Single View
+        self._on_copy: Callable | None = None          # 复制此框
 
         # 交互设置
         self.setAcceptHoverEvents(True)
@@ -117,8 +116,8 @@ class CropItem(QGraphicsRectItem):
         self._sync_from_rect()
 
     def set_callbacks(self, on_changed: Callable, on_deleted: Callable,
-                      on_view_single: Optional[Callable] = None,
-                      on_copy: Optional[Callable] = None) -> None:
+                      on_view_single: Callable | None = None,
+                      on_copy: Callable | None = None) -> None:
         """设置回调函数"""
         self._on_changed = on_changed
         self._on_deleted = on_deleted
@@ -288,7 +287,7 @@ class CropItem(QGraphicsRectItem):
         font.setPointSize(10)
         painter.setFont(font)
 
-        for i, (btn_rect, label) in enumerate(zip(btn_rects, self.TOOLBAR_LABELS)):
+        for _i, (btn_rect, label) in enumerate(zip(btn_rects, self.TOOLBAR_LABELS)):
             # 按钮背景
             if btn_rect.contains(self._toolbar_hover_pos):
                 painter.setBrush(QBrush(QColor(255, 255, 255, 40)))
