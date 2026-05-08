@@ -103,6 +103,8 @@ class CropItem(QGraphicsRectItem):
         self._on_deleted: Callable | None = None
         self._on_view_single: Callable | None = None  # 切换到 Single View
         self._on_copy: Callable | None = None          # 复制此框
+        self._on_rotate_left: Callable | None = None   # 逆时针 90°
+        self._on_rotate_right: Callable | None = None  # 顺时针 90°
 
         # 交互设置
         self.setAcceptHoverEvents(True)
@@ -117,12 +119,16 @@ class CropItem(QGraphicsRectItem):
 
     def set_callbacks(self, on_changed: Callable, on_deleted: Callable,
                       on_view_single: Callable | None = None,
-                      on_copy: Callable | None = None) -> None:
+                      on_copy: Callable | None = None,
+                      on_rotate_left: Callable | None = None,
+                      on_rotate_right: Callable | None = None) -> None:
         """设置回调函数"""
         self._on_changed = on_changed
         self._on_deleted = on_deleted
         self._on_view_single = on_view_single
         self._on_copy = on_copy
+        self._on_rotate_left = on_rotate_left
+        self._on_rotate_right = on_rotate_right
 
     @property
     def crop_rect(self) -> CropRect:
@@ -251,17 +257,18 @@ class CropItem(QGraphicsRectItem):
 
     TOOLBAR_BUTTON_SIZE = 20
     TOOLBAR_GAP = 4
-    TOOLBAR_LABELS = ["⛶", "📋", "✕"]  # view, copy, delete
+    TOOLBAR_LABELS = ["⛶", "📋", "↺", "↻", "✕"]  # view, copy, rotate-left, rotate-right, delete
 
     def _toolbar_rects(self, rect: QRectF) -> list:
-        """返回三个工具栏按钮的 QRectF（在裁剪框坐标系内）"""
+        """返回工具栏按钮的 QRectF（在裁剪框坐标系内）"""
         btn_w = self.TOOLBAR_BUTTON_SIZE
-        total_w = btn_w * 3 + self.TOOLBAR_GAP * 2
+        n = len(self.TOOLBAR_LABELS)
+        total_w = btn_w * n + self.TOOLBAR_GAP * (n - 1)
         x_start = rect.center().x() - total_w / 2
         y = rect.top() - 28  # 框上方 28px
 
         rects = []
-        for i in range(3):
+        for i in range(n):
             rx = x_start + i * (btn_w + self.TOOLBAR_GAP)
             rects.append(QRectF(rx, y, btn_w, btn_w))
         return rects
@@ -271,7 +278,8 @@ class CropItem(QGraphicsRectItem):
         btn_rects = self._toolbar_rects(rect)
 
         # 背景
-        total_w = self.TOOLBAR_BUTTON_SIZE * 3 + self.TOOLBAR_GAP * 2
+        n = len(self.TOOLBAR_LABELS)
+        total_w = self.TOOLBAR_BUTTON_SIZE * n + self.TOOLBAR_GAP * (n - 1)
         bg_rect = QRectF(
             rect.center().x() - total_w / 2 - 4,
             rect.top() - 32,
@@ -406,7 +414,15 @@ class CropItem(QGraphicsRectItem):
                 self._on_copy()
                 event.accept()
                 return
-            elif toolbar_idx == 2 and self._on_deleted:
+            elif toolbar_idx == 2 and self._on_rotate_left:
+                self._on_rotate_left()
+                event.accept()
+                return
+            elif toolbar_idx == 3 and self._on_rotate_right:
+                self._on_rotate_right()
+                event.accept()
+                return
+            elif toolbar_idx == 4 and self._on_deleted:
                 self._on_deleted()
                 if self.scene():
                     self.scene().removeItem(self)
