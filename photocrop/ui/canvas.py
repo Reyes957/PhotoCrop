@@ -264,6 +264,8 @@ class CropCanvas(QGraphicsView):
             on_deleted=lambda it=item: self._on_crop_deleted(it),
             on_view_single=lambda it=item: self._on_crop_view_single(it),
             on_copy=lambda it=item: self._on_crop_copy(it),
+            on_rotate_left=lambda it=item: self._on_crop_rotate_left(it),
+            on_rotate_right=lambda it=item: self._on_crop_rotate_right(it),
         )
         self._scene.addItem(item)
         self._crop_items.append(item)
@@ -337,6 +339,22 @@ class CropCanvas(QGraphicsView):
             page_num=item.crop_rect.page_num,
         )
         self._add_crop_item(new_rect)
+        self._push_undo_state()
+        self.rects_changed.emit()
+
+    def _on_crop_rotate_left(self, item: CropItem) -> None:
+        """裁剪框工具栏：逆时针旋转 90°"""
+        item.crop_rect.rotation_angle = (item.crop_rect.rotation_angle - 90) % 360
+        item._sync_from_rect()
+        item.update()
+        self._push_undo_state()
+        self.rects_changed.emit()
+
+    def _on_crop_rotate_right(self, item: CropItem) -> None:
+        """裁剪框工具栏：顺时针旋转 90°"""
+        item.crop_rect.rotation_angle = (item.crop_rect.rotation_angle + 90) % 360
+        item._sync_from_rect()
+        item.update()
         self._push_undo_state()
         self.rects_changed.emit()
 
