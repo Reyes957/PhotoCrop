@@ -10,7 +10,7 @@ v0.5.1: Bug 修复 — 撤销支持、属性面板、build-backend、导出模�
 v0.5.2: 17 个 Bug 修复 + PDF 全局跨页预览 + 裁剪框旋转 90° + PDF 多页展开 + CI 修复
 """
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 from photocrop.utils.crop_rect import CropRect
 

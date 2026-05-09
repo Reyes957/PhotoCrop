@@ -50,6 +50,8 @@ class ExportDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("导出设置")
         self.setMinimumWidth(420)
+        # BUG-044 fix: 初始化 _export_scope，默认为 "page"
+        self._export_scope = "page"
         self.setStyleSheet(f"""
             QDialog {{
                 background-color: {PANEL_BG};
@@ -251,7 +253,7 @@ class ExportDialog(QDialog):
         lbl_tpl.setFixedWidth(60)
         tpl_layout.addWidget(lbl_tpl)
 
-        self._edit_template = QLineEdit("{name}_{index:02d}.{ext}")
+        self._edit_template = QLineEdit("{name}_p{page}_{index:02d}.{ext}")
         self._edit_template.setToolTip("可用变量: {name} {page} {index:02d} {ext}")
         tpl_layout.addWidget(self._edit_template, 1)
 
@@ -323,5 +325,5 @@ class ExportDialog(QDialog):
             "auto_rotate": self._chk_auto_rotate.isChecked(),
             "trim_white": self._chk_trim_white.isChecked(),
             "template": self._edit_template.text(),
-            "scope": getattr(self, "_export_scope", "page"),
+            "scope": self._export_scope,
         }

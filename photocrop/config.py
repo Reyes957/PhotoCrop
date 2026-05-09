@@ -82,7 +82,7 @@ def _load_yaml(path: Path) -> dict:
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else {}
-    except Exception as e:
+    except (OSError, ValueError, AttributeError) as e:
         logger.warning("配置文件读取失败 (%s): %s", path, e)
         return {}
 
@@ -138,7 +138,7 @@ def save_config(cfg: PhotoCropConfig, path: Path | None = None) -> None:
         logger.info("配置已保存: %s", config_path)
     except ImportError:
         logger.warning("pyyaml 未安装，无法保存配置。运行 pip install pyyaml 启用。")
-    except Exception as e:
+    except (OSError, ValueError, AttributeError) as e:
         logger.warning("配置保存失败: %s", e)
 
 

@@ -140,7 +140,11 @@ class CropCanvas(QGraphicsView):
         self.image_loaded.emit()
 
     def _load_pdf(self, path: Path) -> None:
-        """加载 PDF 文件"""
+        """加载 PDF 文件
+
+        Deprecated: MainWindow 使用 session-based 按需加载（_load_single_file），
+        不经过此路径。此方法仅供直接的 canvas API 调用使用，会一次性渲染所有页面。
+        """
         try:
             from photocrop.export.pdf_reader import pdf_to_images
             self._pdf_pages = pdf_to_images(path, dpi=200)
@@ -344,7 +348,7 @@ class CropCanvas(QGraphicsView):
             width=item.crop_rect.width,
             height=item.crop_rect.height,
             rotation_angle=item.crop_rect.rotation_angle,
-            source_type=item.crop_rect.source_type,
+            source_type="manual",
             page_num=item.crop_rect.page_num,
         )
         self._add_crop_item(new_rect)

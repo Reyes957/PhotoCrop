@@ -11,6 +11,7 @@ Apple 设计风格：
 
 from __future__ import annotations
 
+import copy
 import re
 from pathlib import Path
 
@@ -644,6 +645,9 @@ class MainWindow(QMainWindow):
                 )
             else:
                 # 普通图片
+                # BUG-049: 先设置 _current_key 再 load_image，避免 rects_changed
+                # 信号触发 _on_rects_changed 时用旧 key 保存数据。
+                self._current_key = path_str
                 self._canvas.load_image(path_str)
 
                 sess = ImageSession(
@@ -653,7 +657,6 @@ class MainWindow(QMainWindow):
                     undo_snapshot=self._canvas._undo_manager.serialize(),
                 )
                 self._sessions[path_str] = sess
-                self._current_key = path_str
 
                 # 禁用全局预览模式
                 self._extracted_panel.set_global_mode(False)
@@ -682,6 +685,11 @@ class MainWindow(QMainWindow):
         if not self._current_key:
             return
 
+        # BUG-048 fix: 深拷贝 CropRect，避免 CropItem._sync_to_rect() 的
+        # 原地修改"穿透"到 session 存储的数据。Canvas 的 crop_rects 属性返回
+        # CropItem 内部持有的同一 CropRect 引用，拖动/缩放会直接修改这些对象。
+        # 不深拷贝的话，切页后恢复的裁剪框会反映用户在其他操作中的修改。
+
         if "::page_" in self._current_key:
             # PDF 页面：保存到父 session 的 page_crop_rects / page_undo_snapshots
             pdf_key, page_str = self._current_key.rsplit("::page_", 1)
@@ -689,7 +697,7 @@ class MainWindow(QMainWindow):
             sess = self._sessions.get(pdf_key)
             if sess is None:
                 return
-            sess.page_crop_rects[page_idx] = list(self._canvas.crop_rects)
+            sess.page_crop_rects[page_idx] = [copy.deepcopy(r) for r in self._canvas.crop_rects]
             sess.page_undo_snapshots[page_idx] = self._canvas._undo_manager.serialize()
         elif self._current_key in self._sessions:
             sess = self._sessions[self._current_key]
@@ -697,10 +705,10 @@ class MainWindow(QMainWindow):
                 # BUG-003 fix: PDF 初始状态（_current_key 不含 ::page_ 后缀）：
                 # 保存到当前页的 page_crop_rects
                 page_idx = sess.current_pdf_page
-                sess.page_crop_rects[page_idx] = list(self._canvas.crop_rects)
+                sess.page_crop_rects[page_idx] = [copy.deepcopy(r) for r in self._canvas.crop_rects]
                 sess.page_undo_snapshots[page_idx] = self._canvas._undo_manager.serialize()
             else:
-                sess.crop_rects = list(self._canvas.crop_rects)
+                sess.crop_rects = [copy.deepcopy(r) for r in self._canvas.crop_rects]
                 sess.undo_snapshot = self._canvas._undo_manager.serialize()
 
     def _switch_image(self, key: str) -> None:
@@ -719,21 +727,30 @@ class MainWindow(QMainWindow):
             if sess is None:
                 return
 
+            # BUG-049 fix: 在 load_pil_image 之前先快照目标页数据并更新
+            # _current_key。load_pil_image 内部的 _display_image 会清空 canvas
+            # 并发射 rects_changed，触发 _on_rects_changed 用 _current_key
+            # 向 session 保存空数据。因此必须：
+            #   1. 先快照目标页数据（之后 session 数据会被污染）
+            #   2. 更新 _current_key（否则信号会污染旧页面）
+            #   3. 再用快照恢复 canvas
             img = sess.get_page_image(page_idx)
-            self._canvas.load_pil_image(img)
-
-            # 恢复该页的裁剪框和撤销历史
-            page_rects = sess.page_crop_rects.get(page_idx, [])
-            self._canvas._restore_rects(page_rects)
-
-            if page_idx in sess.page_undo_snapshots:
-                self._canvas._undo_manager.deserialize(sess.page_undo_snapshots[page_idx])
-            else:
-                self._canvas._undo_manager.clear()
-                self._canvas._undo_manager.push_state([])
+            page_rects = list(sess.page_crop_rects.get(page_idx, []))
+            page_undo = sess.page_undo_snapshots.get(page_idx)
 
             sess.current_pdf_page = page_idx
             self._current_key = key
+
+            self._canvas.load_pil_image(img)
+
+            # 用快照恢复（此时 session 中的对应槽已被 rects_changed 污染为空）
+            self._canvas._restore_rects(page_rects)
+
+            if page_undo is not None:
+                self._canvas._undo_manager.deserialize(page_undo)
+            else:
+                self._canvas._undo_manager.clear()
+                self._canvas._undo_manager.push_state([])
 
             # 更新预览面板：全局模式显示所有页面
             self._extracted_panel.set_source_image(img)
@@ -742,10 +759,13 @@ class MainWindow(QMainWindow):
         elif key in self._sessions:
             # 普通图片 / PDF 父项（非 page key）
             sess = self._sessions[key]
-            self._canvas.load_pil_image(sess.source_image)
-            self._canvas._undo_manager.deserialize(sess.undo_snapshot)
-            self._canvas._restore_rects(sess.crop_rects)
+            # BUG-049: 先快照 + 更新 _current_key，再操作 canvas
+            crop_rects = list(sess.crop_rects)
+            undo_snapshot = sess.undo_snapshot
             self._current_key = key
+            self._canvas.load_pil_image(sess.source_image)
+            self._canvas._undo_manager.deserialize(undo_snapshot)
+            self._canvas._restore_rects(crop_rects)
 
             # 更新预览面板：单图用单页模式
             self._extracted_panel.set_source_image(sess.source_image)
@@ -808,16 +828,18 @@ class MainWindow(QMainWindow):
             if sess.is_pdf:
                 # PDF：更新每页的裁剪计数
                 for page_idx in range(sess.page_count):
-                    page_key = f"{key}::page_{page_idx}"
-                    is_current = (
-                        page_key == self._current_key
-                        or (self._current_key == key and page_idx == sess.current_pdf_page)
-                    )
-                    if is_current:
+                    # BUG-044 fix: 统一 is_current 判断逻辑
+                    is_current_page = False
+                    if self._current_key == f"{key}::page_{page_idx}":
+                        is_current_page = True
+                    elif self._current_key == key and page_idx == sess.current_pdf_page:
+                        is_current_page = True
+
+                    if is_current_page:
                         count = len(self._canvas.crop_rects)
                     else:
                         count = len(sess.page_crop_rects.get(page_idx, []))
-                    self._image_list_panel.update_crop_count(page_key, count)
+                    self._image_list_panel.update_crop_count(f"{key}::page_{page_idx}", count)
                     total_crops += count
             else:
                 # 单图
@@ -979,8 +1001,11 @@ class MainWindow(QMainWindow):
                     f"检测完成: {total} 页, {total_rects} 个裁剪框"
                 )
                 self._update_image_list_panel()
-                # 刷新全局预览（使用当前页的实时数据）
+                # BUG-045 fix: 批量检测完成后，将当前页的检测结果加载到 canvas
                 current_page = sess.current_pdf_page
+                current_rects = sess.page_crop_rects.get(current_page, [])
+                self._canvas._restore_rects(current_rects)
+                # 刷新全局预览（使用当前页的实时数据）
                 self._refresh_global_preview(sess, current_page)
 
         QTimer.singleShot(100, check_progress)
@@ -1015,25 +1040,14 @@ class MainWindow(QMainWindow):
         self._save_current_session()
 
         current_crops = len(self._canvas.crop_rects)
+        # BUG-047 fix: _save_current_session() 已调用，统一从 session 计算裁剪框总数
         total_crops = 0
-        for key, sess in self._sessions.items():
+        for _key, sess in self._sessions.items():
             if sess.is_pdf:
-                # PDF：累加所有页面的裁剪框
                 for page_idx in range(sess.page_count):
-                    page_key = f"{key}::page_{page_idx}"
-                    is_current = (
-                        page_key == self._current_key
-                        or (self._current_key == key and page_idx == sess.current_pdf_page)
-                    )
-                    if is_current:
-                        total_crops += len(self._canvas.crop_rects)
-                    else:
-                        total_crops += len(sess.page_crop_rects.get(page_idx, []))
+                    total_crops += len(sess.page_crop_rects.get(page_idx, []))
             else:
-                if key == self._current_key:
-                    total_crops += len(self._canvas.crop_rects)
-                else:
-                    total_crops += len(sess.crop_rects)
+                total_crops += len(sess.crop_rects)
 
         if current_crops == 0 and total_crops == 0:
             QMessageBox.information(self, "导出", "没有裁剪框可以导出")
@@ -1055,7 +1069,7 @@ class MainWindow(QMainWindow):
         max_h = config["max_height"]
         auto_rotate = config["auto_rotate"]
         trim_white = config["trim_white"]
-        template = config.get("template", "{name}_{index:02d}.{ext}")
+        template = config.get("template", "{name}_p{page}_{index:02d}.{ext}")
         scope = config["scope"]
 
         exported = 0
@@ -1096,18 +1110,14 @@ class MainWindow(QMainWindow):
 
                 if sess.is_pdf:
                     # PDF：导出所有页面的裁剪框
+                    # BUG-047 fix: _save_current_session() 已在导出前调用（第 1020 行），
+                    # session 数据已是最新。统一从 session 获取，避免 canvas/session 状态不一致。
                     for page_idx in range(sess.page_count):
-                        page_key = f"{key}::page_{page_idx}"
-                        is_current = (
-                            page_key == self._current_key
-                            or (self._current_key == key and page_idx == sess.current_pdf_page)
-                        )
-                        if is_current:
-                            rects = list(self._canvas.crop_rects)
-                            source_img = self._canvas.source_image
-                        else:
-                            rects = sess.page_crop_rects.get(page_idx, [])
-                            source_img = sess.get_page_image(page_idx) if rects else None
+                        rects = sess.page_crop_rects.get(page_idx, [])
+                        try:
+                            source_img = sess.get_page_image(page_idx)
+                        except Exception:
+                            source_img = None
 
                         if not rects or source_img is None:
                             continue
@@ -1146,18 +1156,46 @@ class MainWindow(QMainWindow):
                         except Exception as e:
                             errors.append(f"{source_name} #{i + 1}: {e}")
 
-        msg = f"成功导出 {exported} 张照片"
+        msg = f"成功导出 {exported} 张照片\n→ {output_dir}"
         if errors:
             msg += f"\n\n失败 {len(errors)} 张:\n" + "\n".join(errors)
 
         QMessageBox.information(self, "导出完成", msg)
-        self._lbl_status.setText(f"导出完成: {exported} 张")
+        self._lbl_status.setText(f"导出完成: {exported} 张 → {output_dir}")
 
     def _on_prev_page(self) -> None:
+        # BUG-051: 优先使用 session-based 导航（image_list_panel），
+        # canvas 的 prev_page 依赖 _pdf_pages（session 模式下永远为空）
+        pdf_sess = self._get_current_pdf_session()
+        if pdf_sess is not None:
+            # 找到上一页的 key 并切换
+            prev_page = self._get_sibling_page_key(-1)
+            if prev_page:
+                self._image_list_panel.select_image(prev_page)
+                self._switch_image(prev_page)
+            return
         self._canvas.prev_page()
 
     def _on_next_page(self) -> None:
+        pdf_sess = self._get_current_pdf_session()
+        if pdf_sess is not None:
+            next_page = self._get_sibling_page_key(1)
+            if next_page:
+                self._image_list_panel.select_image(next_page)
+                self._switch_image(next_page)
+            return
         self._canvas.next_page()
+
+    def _get_sibling_page_key(self, offset: int) -> str | None:
+        """获取当前 PDF 页面 ±offset 的 key，用于翻页导航"""
+        if not self._current_key or "::page_" not in self._current_key:
+            return None
+        pdf_key, page_str = self._current_key.rsplit("::page_", 1)
+        page_idx = int(page_str) + offset
+        sess = self._sessions.get(pdf_key)
+        if sess is None or page_idx < 0 or page_idx >= sess.page_count:
+            return None
+        return f"{pdf_key}::page_{page_idx}"
 
     def _on_undo(self) -> None:
         self._canvas.undo()
@@ -1221,8 +1259,11 @@ class MainWindow(QMainWindow):
                     items[local_idx].setSelected(True)
 
             if self._current_key != target_key:
-                self._save_current_session()
+                # BUG-050: select_image 会 blocked signal 阻止 _switch_image，
+                # 必须显式调用 _switch_image 实际切换页面。
+                # _switch_image 内部会调 _save_current_session，无需重复。
                 self._image_list_panel.select_image(target_key)
+                self._switch_image(target_key)
                 # 切页后延迟选中，确保 items 已加载
                 QTimer.singleShot(0, _do_select)
             else:
@@ -1258,8 +1299,9 @@ class MainWindow(QMainWindow):
                     self._canvas.rects_changed.emit()
 
             if self._current_key != target_key:
-                self._save_current_session()
+                # BUG-050: select_image 会 blocked signal，需显式切换页面
                 self._image_list_panel.select_image(target_key)
+                self._switch_image(target_key)
                 QTimer.singleShot(0, _do_delete)
             else:
                 _do_delete()
@@ -1312,7 +1354,7 @@ class MainWindow(QMainWindow):
             current_page = -1
             if "::page_" in (self._current_key or ""):
                 current_page = int(self._current_key.rsplit("::page_", 1)[1])
-                pdf_sess.page_crop_rects[current_page] = list(self._canvas.crop_rects)
+                pdf_sess.page_crop_rects[current_page] = [copy.deepcopy(r) for r in self._canvas.crop_rects]
             # 直接调 refresh_all_pages 更新数据，复用已有 _all_pages_data 中的图像
             pages_data = list(self._extracted_panel._all_pages_data)
             # 替换当前页的 rects（保留已有图像引用）

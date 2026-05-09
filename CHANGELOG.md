@@ -33,6 +33,19 @@
 
 - **ruff lint 199 处报错** — v0.5.1 提交后 CI 失败。修复：`ruff --fix` + `ruff --fix --unsafe-fixes`（类型注解现代化：List→list、Optional→X|None、Union→X|Y）+ 手动修复 4 处 B904 + pyproject.toml 添加 E402 到 ignore。31 个文件已提交。
 
+### 第二轮 Bug 修复（2026-05-09）
+
+- **BUG-047 导出 is_current 判断逻辑错误** — 当 `_current_key` 是 PDF 父键时，`is_current` 判断逻辑可能导致当前页的裁剪框使用了 session 中保存的旧数据。修复：统一 `is_current` 判断逻辑（`_on_export`、`total_crops` 计算、`_update_image_list_panel` 三处）
+- **BUG-048 CropRect 浅拷贝导致切页后检测框变化** — `_save_current_session` 和 `_on_rects_changed` 用 `list()` 保存裁剪框，CropRect 对象是 CropItem 内部持有的同一引用。修复：所有保存到 session 的位置改为 `[copy.deepcopy(r) for r in self._canvas.crop_rects]`
+- **BUG-049 _current_key 时序错误导致切页数据串页** — `_switch_image` 中 `_current_key` 的赋值放在 `load_pil_image` 和 `_restore_rects` 之后，这些方法发射的 `rects_changed` 信号用旧 `_current_key` 保存数据，导致旧页面 session 槽被新页面数据污染。修复：在操作 canvas 之前先快照目标页数据、更新 `_current_key`、再用快照恢复 canvas（`_switch_image` PDF+非PDF 两分支，`_load_single_file` 非PDF 分支）
+- **BUG-050 跨页预览面板点击无法切换页面** — `_on_extracted_crop_selected` 中 `select_image` 内部 `_block_signal = True` 阻止了 `_switch_image` 的触发。修复：`select_image` 之后显式调用 `_switch_image`（选中+删除两处）
+- **BUG-051 ← → 键盘快捷键 session 模式 PDF 失效** — `_on_prev_page` / `_on_next_page` 调用 `canvas.prev_page()` / `canvas.next_page()`，走的是 `_pdf_pages` 列表（session 模式下永远为空）。修复：新增 `_get_sibling_page_key()` 方法，优先使用 image_list_panel 导航，非 PDF 回退到 canvas 原有逻辑
+- **BUG-052 复制裁剪框 source_type 错误** — `_on_crop_copy` 创建新 `CropRect` 时拷贝了原框的 `source_type`。修复：复制框 `source_type` 强制设为 `"manual"`
+- **导出文件名模板缺少 {page}** — 默认模板 `{name}_{index:02d}.{ext}` 无 `{page}` 变量，多页 PDF 导出时不同页产生相同文件名互相覆盖。修复：默认模板改为 `{name}_p{page}_{index:02d}.{ext}`
+- **导出成功消息不显示输出路径** — 用户不知道文件写到哪里。修复：对话框和状态栏均显示完整输出路径
+- **config.py 裸 except Exception** — `_load_yaml()` 和 `save_config()` 中两处裸 except。修复：改为 `(OSError, ValueError, AttributeError)`
+- **ruff B007 + 测试清理** — 未使用的循环变量 `key` 改为 `_key`；删除重复的中文命名测试文件 `test_export尺寸匹配.py`，合并到 `test_export_bug.py`（新增 3 个测试用例，共 6 个）；修复测试文件 `return` → `assert` 警告
+
 ---
 
 ## v0.5.1 — Bug 修复 + 代码质量（2026-05-07）
