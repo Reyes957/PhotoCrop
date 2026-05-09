@@ -243,13 +243,19 @@ class CropCanvas(QGraphicsView):
         if self._source_image is None:
             return 0
 
-        # 先清除旧裁剪框，避免重复检测叠加
-        self.clear_crops()
+        # 直接清除旧裁剪框（不通过 clear_crops，避免多余的 undo 帧）
+        for item in self._crop_items[:]:
+            self._scene.removeItem(item)
+        self._crop_items.clear()
 
         rects = detect_rectangles(self._source_image, **kwargs)
 
         for rect in rects:
             self._add_crop_item(rect)
+
+        # BUG-001 fix: 推入撤销状态并通知 UI（预览面板依赖此信号刷新）
+        self._push_undo_state()
+        self.rects_changed.emit()
 
         self.detection_done.emit(len(rects))
         return len(rects)
@@ -300,6 +306,9 @@ class CropCanvas(QGraphicsView):
             self._pixmap_item = None
         self._scene.clear()
         self._crop_items.clear()
+        # BUG-013 fix: 释放 source_image 引用，允许 GC 回收大图像
+        self._source_image = None
+        self._source_path = None
         self.rects_changed.emit()
 
     def _remove_crop_item(self, item: CropItem) -> None:

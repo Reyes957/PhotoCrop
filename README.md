@@ -32,6 +32,9 @@ The whole detection pipeline runs locally with offline models. Your photos never
 - **Multi-image management** — Left panel with thumbnails, file names, and crop counts; right-click context menu
 - **Crop property panel** — Real-time editing of Width/Height/X/Y/Rotation with aspect ratio lock
 - **Crop result preview** — 2-column grid with LRU cache; click to select or delete
+- **PDF multi-page expand** — Left panel shows PDF as parent item + N child items with thumbnails
+- **PDF global cross-page preview** — Preview all pages' crop boxes in one view, grouped by page, with cross-page selection and deletion
+- **Crop box rotation** — 90° clockwise/counter-clockwise rotation from the floating toolbar
 - **Single View** — Side-by-side layout: original thumbnail + extracted full-size image with page navigation
 - **Batch export dialog** — Format (JPEG/PNG/TIFF), quality, max dimensions, filename template, auto-rotation, white-border trimming
 - **Template system** — Percentage-based crop templates that work across different images
@@ -93,9 +96,10 @@ python -m photocrop.main --pdf album.pdf --output ./photos/
 
 ```bash
 python -m photocrop.main page.jpg --detector cv          # Default: traditional CV
-python -m photocrop.main page.jpg --detector enhanced-cv  # Enhanced CV pipeline
+python -m photocrop.main page.jpg --detector enhanced-cv  # Enhanced CV pipeline (deprecated)
 python -m photocrop.main page.jpg --detector combined     # IoU voting fusion
 python -m photocrop.main page.jpg --detector yolo-world   # YOLO-World (requires model)
+python -m photocrop.main page.jpg --detector model        # Placeholder for vision API detectors
 ```
 
 ### GUI keyboard shortcuts

@@ -74,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--detector",
         type=str,
         default="cv",
-        choices=["cv", "enhanced-cv", "combined", "yolo-world"],
+        choices=["cv", "enhanced-cv", "combined", "yolo-world", "model"],
         help="检测器类型（默认 cv）",
     )
     parser.add_argument(

@@ -7,6 +7,7 @@ ImageSession — 单张图像的会话状态
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -34,19 +35,25 @@ class ImageSession:
     current_pdf_page: int = 0
     _page_cache: dict[int, Image.Image] = field(default_factory=dict, repr=False)
     _page_preview_cache: dict[int, Image.Image] = field(default_factory=dict, repr=False)
+    _cache_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def get_page_image(self, page_idx: int) -> Image.Image:
         """按需加载 PDF 页面图像（LRU 缓存，默认保留最近 5 页）"""
-        if page_idx in self._page_cache:
-            return self._page_cache[page_idx]
+        # BUG-014 fix: 加锁保护 _page_cache 的读写
+        with self._cache_lock:
+            if page_idx in self._page_cache:
+                return self._page_cache[page_idx]
+
         if not self.pdf_page_loader:
             raise RuntimeError("PDF page loader not set")
         img = self.pdf_page_loader(page_idx)
-        # LRU 淘汰：缓存满时删除最早插入的
-        if len(self._page_cache) >= 5:
-            oldest = next(iter(self._page_cache))
-            del self._page_cache[oldest]
-        self._page_cache[page_idx] = img
+
+        with self._cache_lock:
+            # LRU 淘汰：缓存满时删除最早插入的
+            if len(self._page_cache) >= 5:
+                oldest = next(iter(self._page_cache))
+                del self._page_cache[oldest]
+            self._page_cache[page_idx] = img
         return img
 
     def clear_page_cache(self) -> None:

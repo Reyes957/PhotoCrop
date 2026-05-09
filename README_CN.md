@@ -32,6 +32,9 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 - **多图像管理** — 左侧面板显示缩略图、文件名、裁剪计数；右键菜单操作
 - **裁剪框属性面板** — 实时编辑 Width/Height/X/Y/Rotation，支持宽高比锁定
 - **裁剪结果预览** — 2 列网格预览，LRU 缓存，点击选中或删除
+- **PDF 多页展开** — 左侧列表 PDF 展开为父项 + N 个带缩略图的子项
+- **PDF 全局跨页预览** — 显示 PDF 所有页面的裁剪框，按 Page 分组，当前页高亮，支持跨页点击选中/删除
+- **裁剪框旋转 90°** — 浮动工具栏 ↺/↻ 按钮，逆时针/顺时针 90° 旋转
 - **Single View** — 双栏布局：原图缩略 + 提取大图，页码导航
 - **批量导出对话框** — 格式（JPEG/PNG/TIFF）、质量、最大宽高、文件名模板、自动旋转、去白边
 - **模板系统** — 百分比坐标存储的裁剪模板，跨图片复用
@@ -93,9 +96,10 @@ python -m photocrop.main --pdf album.pdf --output ./photos/
 
 ```bash
 python -m photocrop.main page.jpg --detector cv            # 默认：传统 CV 算法
-python -m photocrop.main page.jpg --detector enhanced-cv   # 增强 CV 管线
+python -m photocrop.main page.jpg --detector enhanced-cv   # 增强 CV 管线（已废弃）
 python -m photocrop.main page.jpg --detector combined      # IoU 投票融合
 python -m photocrop.main page.jpg --detector yolo-world    # YOLO-World（需下载模型）
+python -m photocrop.main page.jpg --detector model         # 视觉大模型 API 占位
 ```
 
 ### GUI 快捷键

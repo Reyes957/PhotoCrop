@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.5.2 — Bug 修复 + PDF 功能增强（2026-05-09）
+
+### PDF 功能增强
+
+- **PDF 全局跨页预览** — `extracted_images_panel.py` 全局模式显示 PDF 所有页面的裁剪框，按 Page 分组，当前页高亮，支持跨页点击选中/删除
+- **PDF 多页展开** — `image_list_panel.py` 左侧列表 PDF 展开为父项 + N 个带缩略图的子项
+- **PDF 页面预览缓存** — `session.py` 新增 `_page_preview_cache`（160×160 小图），独立于 LRU 页面缓存，PDF 加载时一次性填充
+- **裁剪框旋转 90°** — `crop_item.py` 浮动工具栏新增 ↺/↻ 按钮，逆时针/顺时针 90° 旋转并推入撤销栈
+
+### Bug 修复（17 项）
+
+- **detect() 未 emit rects_changed** — 检测完成后预览面板为空。修复：`detect()` 改为直接清除 items，添加完后 `_push_undo_state()` + `rects_changed.emit()`
+- **PageDetectionTask 被 GC 回收** — PDF 批量检测信号丢失。修复：`tasks` 改为实例属性 `self._batch_tasks`
+- **_save_current_session PDF 初始状态保存错字段** — `_current_key` 不含 `::page_` 时走 elif 分支，保存到 `sess.crop_rects` 而非 `page_crop_rects`。修复：elif 分支增加 `sess.is_pdf` 判断
+- **_on_export 导出前未保存当前页** — canvas 上的最新修改未同步到 session。修复：`_on_export` 开头调用 `_save_current_session()`
+- **导出时 page_key 与 _current_key 永不匹配** — `page_key` 永远不等于 `_current_key`。修复：增加 `is_current` 匹配条件（3 处）
+- **PDF page_loader 重新渲染整个 PDF** — `pdf_to_images(path, dpi=200)` 每次渲染所有页只为取 1 页。修复：改用 `fitz.open()` 只渲染目标页
+- **导出文件名模板不支持自定义格式** — 硬编码 `.replace("{index:02d}", ...)` 只支持 02d。修复：新增 `_fill_template()` 静态方法，正则匹配支持 `{index:N}` 任意格式
+- **极小图片导致引擎崩溃** — `classify_scene` 无最小尺寸检查。修复：`w < DOWNscale_FACTOR * 2` 时跳过检测
+- **CropRect.from_pixel_rect 不验证参数** — 反序坐标产生负 width/height。修复：自动交换坐标 + 抛 ValueError
+- **pil_to_qimage 丢失 LA/P alpha** — 只处理 RGBA 和 RGB。修复：LA/PA 模式先 convert("RGBA")
+- **CombinedDetector 依赖已废弃 EnhancedCVDetector** — 每次初始化触发 DeprecationWarning。修复：同步标记为废弃
+- **CLI --detector 缺少 model** — choices 与 get_detector() 不一致。修复：添加 "model"
+- **Canvas.clear_all() 未释放 source_image** — 大图像内存无法回收。修复：添加 `self._source_image = None`
+- **ImageSession._page_cache 无锁** — 多线程竞态条件。修复：添加 threading.Lock
+- **ExportDialog 必选参数** — 无法独立构造。修复：参数改为可选（默认 0）
+- **TemplateManager API 不一致** — apply_template 需要 CropTemplate 对象。修复：新增 `apply_template_by_name()` 便捷方法
+- **预览面板裁剪缩略图显示问号** — `_refresh_global_preview` 传给 ExtractedImagesPanel 的 pages_data 是 160×160 缩略图，crop_rect 坐标基于全尺寸图，裁剪框超出图片范围。修复：改用 `get_page_image()`（全尺寸，LRU 缓存）
+
+### CI 修复
+
+- **ruff lint 199 处报错** — v0.5.1 提交后 CI 失败。修复：`ruff --fix` + `ruff --fix --unsafe-fixes`（类型注解现代化：List→list、Optional→X|None、Union→X|Y）+ 手动修复 4 处 B904 + pyproject.toml 添加 E402 到 ignore。31 个文件已提交。
+
+---
+
 ## v0.5.1 — Bug 修复 + 代码质量（2026-05-07）
 
 ### Bug 修复
@@ -35,7 +70,7 @@
 - **Sync Crop(s)** — `canvas.py` 新增 `sync_selected_crops()`，将最后选中的裁剪框 width/height/rotation 同步到其他选中框
 - **Transform 翻转** — `canvas.py` 新增 `flip_horizontal()` / `flip_vertical()`，以原图中心线翻转坐标
 - **宽高比锁定** — `crop_item.py` 新增 `aspect_ratio_lock` 属性 + 拖拽手柄时保持比例；`crop_options_panel.py` 新增 Aspect Ratio 下拉框 (Free/Original/1:1/3:2/4:3/16:9)
-- **裁剪框浮动工具栏** — `crop_item.py` 选中时显示 ⛶查看 / 📋复制 / ✕删除 三个按钮，hover 高亮
+- **裁剪框浮动工具栏** — `crop_item.py` 选中时显示 ⛶查看 / 📋复制 / ↺逆时针 / ↻顺时针 / ✕删除 五个按钮，hover 高亮
 
 ### 阶段三：高级功能
 

@@ -82,10 +82,18 @@ class CropRect:
             rotation_angle: 旋转角度
             confidence: 置信度
         """
+        # BUG-009 fix: 自动交换反序坐标
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y2:
+            y1, y2 = y2, y1
+
         cx = (x1 + x2) / 2
         cy = (y1 + y2) / 2
         w = x2 - x1
         h = y2 - y1
+        if w <= 0 or h <= 0:
+            raise ValueError(f"Invalid rect: width={w}, height={h}")
         return cls(x=cx, y=cy, width=w, height=h,
                    rotation_angle=rotation_angle,
                    confidence=confidence)

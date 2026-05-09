@@ -45,7 +45,7 @@ class ExportDialog(QDialog):
     返回用户选择的导出参数。
     """
 
-    def __init__(self, current_page_crops: int, total_crops: int,
+    def __init__(self, current_page_crops: int = 0, total_crops: int = 0,
                  parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("导出设置")

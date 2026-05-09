@@ -114,6 +114,25 @@ class TemplateManager:
             ))
         return result
 
+    def apply_template_by_name(self, name: str,
+                               image_size: tuple) -> list[CropRect]:
+        """按名称查找并应用模板（BUG-016 fix: 便捷方法）
+
+        Args:
+            name: 模板名称
+            image_size: 目标图片尺寸 (width, height)
+
+        Returns:
+            转换后的 CropRect 列表
+
+        Raises:
+            KeyError: 模板名称不存在
+        """
+        for t in self._templates:
+            if t.name == name:
+                return self.apply_template(t, image_size)
+        raise KeyError(f"Template not found: {name}")
+
     def delete_template(self, name: str) -> bool:
         """删除指定名称的模板"""
         for i, t in enumerate(self._templates):

@@ -60,6 +60,11 @@ def classify_scene(page_img: Image.Image) -> list[tuple[int, int, int, int]]:
     Returns:
         List[(x1, y1, x2, y2)] — 场景区域的像素边界坐标列表
     """
+    # BUG-008 fix: 极小图像跳过检测，避免 resize 产生 0 尺寸
+    w, h = page_img.size
+    if w < DOWNscale_FACTOR * 2 or h < DOWNscale_FACTOR * 2:
+        return []
+
     # 缩小图像加速处理
     small = page_img.resize(
         (page_img.width // DOWNscale_FACTOR, page_img.height // DOWNscale_FACTOR),

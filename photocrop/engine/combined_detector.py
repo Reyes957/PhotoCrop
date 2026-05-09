@@ -8,9 +8,15 @@ CombinedDetector — 组合检测器（IoU 投票融合）
 1. 两个检测器都检测到的区域（IoU > 阈值）→ 高置信度，保留
 2. 仅一个检测器检测到的区域 → 低置信度，按面积过滤后保留
 3. 结果按置信度排序
+
+.. deprecated::
+    CombinedDetector 依赖已废弃的 EnhancedCVDetector，建议使用 CVDetector（默认）
+    或 YOLO-World 代替。
 """
 
 from __future__ import annotations
+
+import warnings
 
 from PIL import Image
 
@@ -25,6 +31,12 @@ class CombinedDetector(BaseDetector):
     """组合检测器 — IoU 投票融合"""
 
     def __init__(self, iou_threshold: float = 0.3):
+        # BUG-011 fix: 同步标记为废弃
+        warnings.warn(
+            "CombinedDetector 已废弃，建议使用 CVDetector（默认）或 YOLO-World 代替",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._cv = CVDetector()
         self._enhanced = EnhancedCVDetector()
         self._iou_threshold = iou_threshold

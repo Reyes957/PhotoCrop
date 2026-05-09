@@ -5,8 +5,11 @@ from PySide6.QtGui import QImage, QPixmap
 
 
 def pil_to_qimage(img: Image.Image) -> QImage:
-    """PIL Image -> QImage（深拷贝，避免内存问题）"""
-    if img.mode == "RGBA":
+    """PIL Image -> QImage（深拷贝，避免内存问题）
+
+    BUG-010 fix: 正确处理 LA/PA/P 等带 alpha 的模式。
+    """
+    if img.mode in ("RGBA", "LA", "PA"):
         img = img.convert("RGBA")
         data = img.tobytes("raw", "RGBA")
         bpl = img.width * 4

@@ -11,6 +11,7 @@ Apple 设计风格：
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -592,13 +593,18 @@ class MainWindow(QMainWindow):
                     t.thumbnail((44, 44), Image.Resampling.LANCZOS)
                     page_thumbs.append(t)
 
-                # 高 DPI 页面加载器（按需渲染）
+                # 高 DPI 页面加载器（按需渲染，只渲染目标页）
                 def page_loader(idx: int) -> Image.Image:
-                    from photocrop.export.pdf_reader import pdf_to_images
-                    pages = pdf_to_images(path, dpi=200)
-                    if 0 <= idx < len(pages):
-                        return pages[idx][1]
-                    raise IndexError(f"Page {idx} out of range")
+                    import fitz
+                    doc = fitz.open(str(path))
+                    try:
+                        zoom = 200 / 72.0
+                        matrix = fitz.Matrix(zoom, zoom)
+                        page = doc[idx]
+                        pix = page.get_pixmap(matrix=matrix)
+                        return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                    finally:
+                        doc.close()
 
                 # 第一页作为初始显示
                 first_page_img = page_loader(0)
@@ -687,8 +693,15 @@ class MainWindow(QMainWindow):
             sess.page_undo_snapshots[page_idx] = self._canvas._undo_manager.serialize()
         elif self._current_key in self._sessions:
             sess = self._sessions[self._current_key]
-            sess.crop_rects = list(self._canvas.crop_rects)
-            sess.undo_snapshot = self._canvas._undo_manager.serialize()
+            if sess.is_pdf:
+                # BUG-003 fix: PDF 初始状态（_current_key 不含 ::page_ 后缀）：
+                # 保存到当前页的 page_crop_rects
+                page_idx = sess.current_pdf_page
+                sess.page_crop_rects[page_idx] = list(self._canvas.crop_rects)
+                sess.page_undo_snapshots[page_idx] = self._canvas._undo_manager.serialize()
+            else:
+                sess.crop_rects = list(self._canvas.crop_rects)
+                sess.undo_snapshot = self._canvas._undo_manager.serialize()
 
     def _switch_image(self, key: str) -> None:
         """切换到另一张图片（支持 PDF 页面 key）"""
@@ -796,7 +809,11 @@ class MainWindow(QMainWindow):
                 # PDF：更新每页的裁剪计数
                 for page_idx in range(sess.page_count):
                     page_key = f"{key}::page_{page_idx}"
-                    if page_key == self._current_key:
+                    is_current = (
+                        page_key == self._current_key
+                        or (self._current_key == key and page_idx == sess.current_pdf_page)
+                    )
+                    if is_current:
                         count = len(self._canvas.crop_rects)
                     else:
                         count = len(sess.page_crop_rects.get(page_idx, []))
@@ -824,21 +841,16 @@ class MainWindow(QMainWindow):
                                 current_page: int = -1) -> None:
         """刷新全局预览面板（跨页模式）
 
-        使用预览缓存（低 DPI 缩略图）避免重新渲染高 DPI 页面图像。
-        仅当前编辑页使用 canvas 实时数据。
+        传递全尺寸页面图像给 ExtractedImagesPanel，由其内部裁剪 + 缩小
+        生成 80×80 缩略图。预览缓存（160×160）用于侧栏缩略图，不适用于裁剪。
         """
         pages_data = []
         for page_idx in range(sess.page_count):
             rects = sess.page_crop_rects.get(page_idx, [])
-            # 优先用预览缓存（不触发高 DPI 渲染）
-            img = sess.get_page_preview(page_idx)
-            if img is None:
-                # fallback：用高 DPI（慢，但只在缓存缺失时发生）
-                try:
-                    img = sess.get_page_image(page_idx)
-                    sess.set_page_preview(page_idx, img)
-                except (RuntimeError, IndexError):
-                    img = sess.source_image
+            try:
+                img = sess.get_page_image(page_idx)
+            except (RuntimeError, IndexError):
+                img = sess.source_image
             pages_data.append((page_idx, img, rects))
 
         current_rects = list(self._canvas.crop_rects) if current_page >= 0 else None
@@ -934,7 +946,8 @@ class MainWindow(QMainWindow):
         pool = QThreadPool.globalInstance()
         pool.setMaxThreadCount(1)  # 串行执行，避免内存压力
 
-        tasks: list[PageDetectionTask] = []
+        # BUG-002 fix: 保存为实例属性，防止 GC 回收 task 对象
+        self._batch_tasks: list[PageDetectionTask] = []
         for page_idx in range(total):
             try:
                 img = sess.get_page_image(page_idx)
@@ -945,7 +958,7 @@ class MainWindow(QMainWindow):
             task = PageDetectionTask(page_idx, img, detector, max_count)
             task.signals.page_done.connect(on_page_done)
             task.signals.error.connect(on_error)
-            tasks.append(task)
+            self._batch_tasks.append(task)
             pool.start(task)
 
         # 进度轮询
@@ -974,7 +987,7 @@ class MainWindow(QMainWindow):
 
         def on_cancel() -> None:
             self._detect_cancelled = True
-            for t in tasks:
+            for t in self._batch_tasks:
                 t.cancel()
             progress.close()
             self._lbl_status.setText(
@@ -998,6 +1011,9 @@ class MainWindow(QMainWindow):
 
     def _on_export(self) -> None:
         """打开导出对话框"""
+        # BUG-004 fix: 先保存当前页状态到 session
+        self._save_current_session()
+
         current_crops = len(self._canvas.crop_rects)
         total_crops = 0
         for key, sess in self._sessions.items():
@@ -1005,7 +1021,11 @@ class MainWindow(QMainWindow):
                 # PDF：累加所有页面的裁剪框
                 for page_idx in range(sess.page_count):
                     page_key = f"{key}::page_{page_idx}"
-                    if page_key == self._current_key:
+                    is_current = (
+                        page_key == self._current_key
+                        or (self._current_key == key and page_idx == sess.current_pdf_page)
+                    )
+                    if is_current:
                         total_crops += len(self._canvas.crop_rects)
                     else:
                         total_crops += len(sess.page_crop_rects.get(page_idx, []))
@@ -1058,11 +1078,9 @@ class MainWindow(QMainWindow):
                     source_name = pdf_sess.source_path.stem
 
             for i, rect in enumerate(rects):
-                out_name = template.replace("{name}", source_name) \
-                                   .replace("{page}", str(page_num)) \
-                                   .replace("{index:02d}", f"{i + 1:02d}") \
-                                   .replace("{index}", str(i + 1)) \
-                                   .replace("{ext}", suffix.lstrip("."))
+                out_name = self._fill_template(
+                    template, source_name, page_num, i + 1, suffix.lstrip("."),
+                )
                 out_path = output_dir / out_name
                 try:
                     export_photo(source_img, rect, out_path,
@@ -1080,7 +1098,11 @@ class MainWindow(QMainWindow):
                     # PDF：导出所有页面的裁剪框
                     for page_idx in range(sess.page_count):
                         page_key = f"{key}::page_{page_idx}"
-                        if page_key == self._current_key:
+                        is_current = (
+                            page_key == self._current_key
+                            or (self._current_key == key and page_idx == sess.current_pdf_page)
+                        )
+                        if is_current:
                             rects = list(self._canvas.crop_rects)
                             source_img = self._canvas.source_image
                         else:
@@ -1091,11 +1113,9 @@ class MainWindow(QMainWindow):
                             continue
 
                         for i, rect in enumerate(rects):
-                            out_name = template.replace("{name}", source_name) \
-                                               .replace("{page}", str(page_idx + 1)) \
-                                               .replace("{index:02d}", f"{i + 1:02d}") \
-                                               .replace("{index}", str(i + 1)) \
-                                               .replace("{ext}", suffix.lstrip("."))
+                            out_name = self._fill_template(
+                                template, source_name, page_idx + 1, i + 1, suffix.lstrip("."),
+                            )
                             out_path = output_dir / out_name
                             try:
                                 export_photo(source_img, rect, out_path,
@@ -1114,11 +1134,9 @@ class MainWindow(QMainWindow):
                         source_img = sess.source_image
 
                     for i, rect in enumerate(rects):
-                        out_name = template.replace("{name}", source_name) \
-                                           .replace("{page}", "1") \
-                                           .replace("{index:02d}", f"{i + 1:02d}") \
-                                           .replace("{index}", str(i + 1)) \
-                                           .replace("{ext}", suffix.lstrip("."))
+                        out_name = self._fill_template(
+                            template, source_name, 1, i + 1, suffix.lstrip("."),
+                        )
                         out_path = output_dir / out_name
                         try:
                             export_photo(source_img, rect, out_path,
@@ -1361,6 +1379,32 @@ class MainWindow(QMainWindow):
         if 0 <= index < len(items):
             self._canvas._scene.clearSelection()
             items[index].setSelected(True)
+
+    @staticmethod
+    def _fill_template(template: str, source_name: str,
+                       page_num: int, index: int, ext: str) -> str:
+        """填充文件名模板，支持 {index:N} 任意格式说明符
+
+        BUG-007 fix: 使用正则匹配支持 {index:03d} 等自定义格式，
+        并在模板不含 {index} 时自动追加序号防覆盖。
+        """
+        out = template.replace("{name}", source_name) \
+                      .replace("{page}", str(page_num)) \
+                      .replace("{ext}", ext)
+        # 支持 {index} 和 {index:N} 任意格式
+        out = re.sub(
+            r'\{index(?::([^}]+))?\}',
+            lambda m: format(index, m.group(1) or "d"),
+            out,
+        )
+        # 如果模板不含 index，自动追加序号防覆盖
+        if "{index" not in template:
+            if "." in out:
+                base, dot_ext = out.rsplit(".", 1)
+                out = f"{base}_{index:02d}.{dot_ext}"
+            else:
+                out = f"{out}_{index:02d}"
+        return out
 
     @staticmethod
     def _view_toggle_style(checked: bool) -> str:
