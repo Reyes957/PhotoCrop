@@ -206,6 +206,74 @@ class ImageListPanel(QWidget):
         self._path_keys.clear()
         self._list.clear()
 
+    def set_theme(self, colors) -> None:
+        """更新面板颜色"""
+        self.setStyleSheet(f"""
+            ImageListPanel {{
+                background-color: {colors.bg};
+            }}
+        """)
+        # Header
+        for lbl in self.findChildren(QLabel):
+            if lbl.text().strip().startswith("IMAGES"):
+                lbl.setStyleSheet(f"""
+                    background-color: {colors.bg};
+                    color: {colors.text_secondary};
+                    font-family: {FONT_FAMILY};
+                    font-size: 11px;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                    padding-left: 10px;
+                    border-bottom: 1px solid {colors.border};
+                """)
+            elif "images," in lbl.text():
+                lbl.setStyleSheet(f"""
+                    background-color: {colors.bg};
+                    color: {colors.text_secondary};
+                    font-family: {FONT_FAMILY};
+                    font-size: 11px;
+                    padding-left: 10px;
+                    border-top: 1px solid {colors.border};
+                """)
+        # List widget
+        self._list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {colors.bg};
+                border: none;
+                outline: none;
+                font-family: {FONT_FAMILY};
+                font-size: 12px;
+                color: {colors.text};
+            }}
+            QListWidget::item {{
+                padding: 6px 8px;
+                border-left: 3px solid transparent;
+                min-height: 50px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {colors.selected_bg};
+                border-left: 3px solid {colors.accent};
+                color: {colors.text};
+            }}
+            QListWidget::item:hover:!selected {{
+                background-color: {colors.hover_bg};
+            }}
+        """)
+        # 更新列表项中的子控件颜色
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item is None:
+                continue
+            widget = self._list.itemWidget(item)
+            if widget is None:
+                continue
+            for lbl in widget.findChildren(QLabel):
+                obj_name = lbl.objectName()
+                if obj_name == "count_label":
+                    lbl.setStyleSheet(f"color: {colors.text_secondary}; font-family: {FONT_FAMILY}; font-size: 10px;")
+                else:
+                    lbl.setStyleSheet(f"color: {colors.text}; font-family: {FONT_FAMILY}; font-size: 12px;")
+
     # ---- 单图项 ----
 
     def _add_single_item(self, key: str, filename: str,

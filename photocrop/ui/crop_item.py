@@ -37,16 +37,25 @@ from photocrop.utils.rotation import normalize_angle
 # Apple 设计常量
 # ============================================================
 
-# 主色调 — 黑白极简
-APPLE_BLUE = QColor("#000000")
-APPLE_BLUE_HOVER = QColor("#333333")
-APPLE_BLUE_LIGHT = QColor(0, 0, 0, 25)  # 选中填充
+# 主色调 — 黑白极简（默认 Light）
+_ACCENT = QColor("#000000")
+_ACCENT_HOVER = QColor("#333333")
+_ACCENT_FILL = QColor(0, 0, 0, 10)   # 选中填充 (4% opacity)
+_CANVAS_BG = QColor("#E8E8E8")
+_WHITE = QColor("#ffffff")
+_DASHED = QColor(102, 102, 102)       # 未选中虚线
 
-# 中性色
-DARK_BG = QColor("#F5F5F5")
-LIGHT_BG = QColor("#F5F5F5")
-WHITE = QColor("#ffffff")
-SEPARATOR = QColor(0, 0, 0, 26)
+
+def set_theme_colors(colors) -> None:
+    """更新 CropItem 绘制使用的颜色（主题切换时调用）"""
+    global _ACCENT, _ACCENT_HOVER, _ACCENT_FILL, _CANVAS_BG, _WHITE, _DASHED
+    _ACCENT = QColor(colors.accent)
+    _ACCENT_HOVER = QColor(colors.accent_hover)
+    _ACCENT_FILL = QColor(colors.accent)
+    _ACCENT_FILL.setAlpha(10)
+    _CANVAS_BG = QColor(colors.canvas_bg)
+    _WHITE = QColor(colors.surface)
+    _DASHED = QColor(102, 102, 102) if colors.accent == "#000000" else QColor(85, 85, 85)
 
 # 手柄尺寸
 HANDLE_SIZE = 8
@@ -169,17 +178,17 @@ class CropItem(QGraphicsRectItem):
             painter.rotate(-angle)
             painter.translate(-center)
 
-        # 半透明蓝色填充（选中时）
+        # 半透明填充（选中时）
         if is_selected:
-            painter.setBrush(QBrush(APPLE_BLUE_LIGHT))
+            painter.setBrush(QBrush(_ACCENT_FILL))
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
 
         # 外框
         if is_selected:
-            pen = QPen(APPLE_BLUE, PEN_WIDTH_SELECTED)
+            pen = QPen(_ACCENT, PEN_WIDTH_SELECTED)
         else:
-            pen = QPen(QColor(102, 102, 102), PEN_WIDTH_INACTIVE, Qt.PenStyle.CustomDashLine)
+            pen = QPen(_DASHED, PEN_WIDTH_INACTIVE, Qt.PenStyle.CustomDashLine)
             pen.setDashPattern(PEN_DASH_PATTERN)
         painter.setPen(pen)
         painter.drawRect(rect)
@@ -196,31 +205,22 @@ class CropItem(QGraphicsRectItem):
         hs = HANDLE_SIZE
         hhs = HANDLE_HOVER_SIZE
 
-        # 四角手柄 — 实心圆
-        corners = [
+        # 统一使用 8×8 方块（参考设计规范）
+        all_handles = [
             (rect.topLeft(), HandlePosition.TOP_LEFT),
             (rect.topRight(), HandlePosition.TOP_RIGHT),
             (rect.bottomLeft(), HandlePosition.BOTTOM_LEFT),
             (rect.bottomRight(), HandlePosition.BOTTOM_RIGHT),
-        ]
-        for pos, handle in corners:
-            size = hhs if self._hovered_handle == handle else hs
-            painter.setPen(QPen(WHITE, 1.5))
-            painter.setBrush(QBrush(APPLE_BLUE))
-            painter.drawEllipse(pos, size, size)
-
-        # 四边手柄 — 小方块
-        midpoints = [
             (QPointF(rect.center().x(), rect.top()), HandlePosition.TOP),
             (QPointF(rect.center().x(), rect.bottom()), HandlePosition.BOTTOM),
             (QPointF(rect.left(), rect.center().y()), HandlePosition.LEFT),
             (QPointF(rect.right(), rect.center().y()), HandlePosition.RIGHT),
         ]
-        for pos, handle in midpoints:
+        for pos, handle in all_handles:
             size = hhs if self._hovered_handle == handle else hs
             half = size / 2
-            painter.setPen(QPen(WHITE, 1.5))
-            painter.setBrush(QBrush(APPLE_BLUE))
+            painter.setPen(QPen(_ACCENT, 1.0))
+            painter.setBrush(QBrush(_CANVAS_BG))
             painter.drawRect(QRectF(pos.x() - half, pos.y() - half, size, size))
 
         # 旋转手柄 — 带连接线
@@ -230,22 +230,23 @@ class CropItem(QGraphicsRectItem):
         )
 
         # 连接线
-        painter.setPen(QPen(APPLE_BLUE, ROTATION_LINE_WIDTH, Qt.PenStyle.DashLine))
+        painter.setPen(QPen(_ACCENT, ROTATION_LINE_WIDTH, Qt.PenStyle.DashLine))
         painter.drawLine(
             QPointF(rect.center().x(), rect.top()),
             rotation_pos,
         )
 
-        # 旋转手柄圆
+        # 旋转手柄方块
         size = hhs if self._hovered_handle == HandlePosition.ROTATION else hs
-        painter.setPen(QPen(WHITE, 1.5))
-        painter.setBrush(QBrush(APPLE_BLUE_HOVER))
-        painter.drawEllipse(rotation_pos, size, size)
+        half = size / 2
+        painter.setPen(QPen(_ACCENT, 1.0))
+        painter.setBrush(QBrush(_CANVAS_BG))
+        painter.drawRect(QRectF(rotation_pos.x() - half, rotation_pos.y() - half, size, size))
 
         # 显示当前旋转角度
         angle = self._crop_rect.rotation_angle
         if angle != 0.0:
-            painter.setPen(QPen(WHITE, 1.0))
+            painter.setPen(QPen(_ACCENT, 1.0))
             font = painter.font()
             font.setPointSize(9)
             painter.setFont(font)
@@ -257,7 +258,7 @@ class CropItem(QGraphicsRectItem):
 
     TOOLBAR_BUTTON_SIZE = 20
     TOOLBAR_GAP = 4
-    TOOLBAR_LABELS = ["⛶", "📋", "↺", "↻", "✕"]  # view, copy, rotate-left, rotate-right, delete
+    TOOLBAR_LABELS = ["👁", "✕", "↺", "⧉"]  # view, delete, rotate, copy (参考设计)
 
     def _toolbar_rects(self, rect: QRectF) -> list:
         """返回工具栏按钮的 QRectF（在裁剪框坐标系内）"""
@@ -304,7 +305,7 @@ class CropItem(QGraphicsRectItem):
             painter.drawRoundedRect(btn_rect, 3, 3)
 
             # 图标文字
-            painter.setPen(QPen(WHITE))
+            painter.setPen(QPen(_WHITE))
             painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, label)
 
     @property
@@ -404,28 +405,24 @@ class CropItem(QGraphicsRectItem):
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            # 先检查工具栏按钮
+            # 先检查工具栏按钮（4 个：👁view ✕delete ↺rotate ⧉copy）
             toolbar_idx = self._toolbar_button_at(event.pos())
             if toolbar_idx == 0 and self._on_view_single:
                 self._on_view_single()
                 event.accept()
                 return
-            elif toolbar_idx == 1 and self._on_copy:
-                self._on_copy()
+            elif toolbar_idx == 1 and self._on_deleted:
+                self._on_deleted()
+                if self.scene():
+                    self.scene().removeItem(self)
                 event.accept()
                 return
             elif toolbar_idx == 2 and self._on_rotate_left:
                 self._on_rotate_left()
                 event.accept()
                 return
-            elif toolbar_idx == 3 and self._on_rotate_right:
-                self._on_rotate_right()
-                event.accept()
-                return
-            elif toolbar_idx == 4 and self._on_deleted:
-                self._on_deleted()
-                if self.scene():
-                    self.scene().removeItem(self)
+            elif toolbar_idx == 3 and self._on_copy:
+                self._on_copy()
                 event.accept()
                 return
 

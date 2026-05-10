@@ -353,3 +353,11 @@ class CropOptionsPanel(QWidget):
         }
         ratio = ratio_map.get(index, 0.0)
         self.aspect_ratio_changed.emit(ratio)
+
+    def set_theme(self, colors) -> None:
+        """更新面板颜色"""
+        self.setStyleSheet(f"""
+            CropOptionsPanel {{
+                background-color: {colors.bg};
+            }}
+        """)

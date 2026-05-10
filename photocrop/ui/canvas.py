@@ -75,7 +75,8 @@ class CropCanvas(QGraphicsView):
         self._min_drag_size = 30  # 最小拖动距离（像素），防止手抖误触
 
         # 画布外观
-        self.setBackgroundBrush(QBrush(QColor("#E8E8E8")))
+        self._canvas_bg = QColor("#E8E8E8")
+        self.setBackgroundBrush(QBrush(self._canvas_bg))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -89,6 +90,17 @@ class CropCanvas(QGraphicsView):
 
         # 监听 scene 选中变化
         self._scene.selectionChanged.connect(self._on_selection_changed)
+
+    def set_theme(self, colors) -> None:
+        """更新画布背景色和裁剪框颜色"""
+        self._canvas_bg = QColor(colors.canvas_bg)
+        self.setBackgroundBrush(QBrush(self._canvas_bg))
+        # 更新 CropItem 颜色
+        from photocrop.ui.crop_item import set_theme_colors
+        set_theme_colors(colors)
+        # 触发所有裁剪框重绘
+        for item in self._crop_items:
+            item.update()
 
     @property
     def source_image(self) -> Image.Image | None:

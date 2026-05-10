@@ -503,3 +503,12 @@ class ExtractedImagesPanel(QWidget):
             "  EXTRACTED IMAGES  ▸" if self._collapsed
             else "  EXTRACTED IMAGES  ▾"
         )
+
+    def set_theme(self, colors) -> None:
+        """更新面板颜色"""
+        self.setStyleSheet(f"""
+            ExtractedImagesPanel {{
+                background-color: {colors.bg};
+            }}
+        """)
+        self._grid_widget.setStyleSheet(f"background-color: {colors.bg};")

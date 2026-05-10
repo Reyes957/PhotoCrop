@@ -287,3 +287,7 @@ class SingleViewPanel(QWidget):
         self._btn_prev.setEnabled(self._current_index > 0)
         self._btn_next.setEnabled(self._current_index < total - 1)
 
+    def set_theme(self, colors) -> None:
+        """更新面板颜色"""
+        self.setStyleSheet(f"background-color: {colors.canvas_bg};")
+
