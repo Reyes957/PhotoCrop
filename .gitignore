@@ -49,3 +49,4 @@ build/
 *.tmp
 *.bak
 *.log
+ui_preview.html
