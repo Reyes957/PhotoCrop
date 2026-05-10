@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.5.3 — 黑白极简 UI 迁移 + 表单布局重构（2026-05-10）
+
+### UI 设计系统迁移
+
+- **Apple Blue → 黑白极简** — 全部 8 个 UI 文件从 `#0071e3` 蓝色系迁移到 `#000000` 纯黑白配色
+- **颜色常量统一** — `PANEL_BG`、`TEXT_PRIMARY`、`TEXT_SECONDARY`、`APPLE_BLUE` 等常量全部更新
+- **样式表重写** — `main_window.py` 的 `STYLE_SHEET` 完整重写（工具栏、按钮、输入框、下拉框、状态栏）
+- **工具栏保持深色浮层** — `crop_item.py` 的裁剪框浮动工具栏保持 `QColor(0,0,0,160)` + 白色文字，确保在任何图片上可见
+- **选中项极浅灰背景** — `image_list_panel.py` 选中项用 `rgba(0,0,0,0.08)` + 黑左边框 3px，不用纯黑底
+
+### 布局与交互重构
+
+- **crop_options_panel.py 完整重构** — 从 QFormLayout 改为自定义 56px 标签列布局，标签与单位分行显示（如 "Width" + "px"），行间距 6→10px，面板内边距 10→16,12，输入框高度 22→24px
+- **底部栏紧凑化** — 高度从 44px 减至 28px，左侧显示版本+状态，右侧 View Toggle（纯文字 bold/gray）+ Export（实心黑底）
+- **工具栏按钮描边风格** — 新增 `[toolbar="true"]` 属性，工具栏按钮改为透明底 + #D0D0D0 描边，区别于全局黑底主按钮
+- **Export 按钮实心化** — 底部 Export 按钮从描边 secondary 改为实心黑底白字
+- **View Toggle 纯文字** — Grid/Single 切换从黑底/描边改为纯文字 bold(黑)/gray
+
+### 涉及文件
+
+- `photocrop/ui/main_window.py` — 颜色常量、STYLE_SHEET、底部栏、工具栏按钮、Export、View Toggle
+- `photocrop/ui/canvas.py` — 画布背景 `#E8E8E8`、框选矩形黑色
+- `photocrop/ui/crop_item.py` — 颜色常量、虚线边框 `#666`、工具栏深色浮层
+- `photocrop/ui/crop_options_panel.py` — 完整重构（56px 标签列 + 分行标签）
+- `photocrop/ui/export_dialog.py` — 颜色常量、样式表、导出全部按钮
+- `photocrop/ui/extracted_images_panel.py` — 颜色常量、滚动条 4px、hover、缩略图占位
+- `photocrop/ui/image_list_panel.py` — 颜色常量、选中项、右键菜单、缩略图占位
+- `photocrop/ui/single_view_panel.py` — 颜色常量、预览面板、高亮框
+
+---
+
 ## v0.5.2 — Bug 修复 + PDF 功能增强（2026-05-09）
 
 ### PDF 功能增强

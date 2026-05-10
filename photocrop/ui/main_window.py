@@ -53,16 +53,16 @@ from photocrop.utils.crop_rect import CropRect
 # Apple 设计常量
 # ============================================================
 
-APPLE_BLUE = "#0071e3"
-APPLE_BLUE_HOVER = "#2997ff"
-APPLE_BLUE_PRESSED = "#005bb5"
-DARK_BG = "#1d1d1f"
-LIGHT_BG = "#f5f5f7"
+APPLE_BLUE = "#000000"
+APPLE_BLUE_HOVER = "#333333"
+APPLE_BLUE_PRESSED = "#000000"
+DARK_BG = "#F5F5F5"
+LIGHT_BG = "#F5F5F5"
 WHITE = "#ffffff"
-TEXT_PRIMARY = "#f5f5f7"
-TEXT_DARK = "#1d1d1f"
-TEXT_SECONDARY = "rgba(0,0,0,0.48)"
-SEPARATOR = "rgba(0,0,0,0.1)"
+TEXT_PRIMARY = "#1A1A1A"
+TEXT_DARK = "#1A1A1A"
+TEXT_SECONDARY = "#666666"
+SEPARATOR = "#E0E0E0"
 
 FONT_DISPLAY = "SF Pro Display, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
 FONT_BODY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
@@ -125,26 +125,27 @@ QMainWindow {{
     background-color: {LIGHT_BG};
 }}
 
-/* 工具栏 — 深色 frosted glass */
+/* 工具栏 — 浅色 */
 QToolBar {{
-    background-color: rgba(29, 29, 31, 0.95);
+    background-color: #FAFAFA;
     border: none;
+    border-bottom: 1px solid {SEPARATOR};
     padding: 10px 20px;
     spacing: 10px;
 }}
 
 QToolBar::separator {{
     width: 1px;
-    background: rgba(255, 255, 255, 0.15);
+    background: {SEPARATOR};
     margin: 4px 8px;
 }}
 
-/* 主按钮 — Apple Blue 胶囊 */
+/* 主按钮 — 黑色极简 */
 QPushButton {{
     background-color: {APPLE_BLUE};
     color: {WHITE};
     border: none;
-    border-radius: 980px;
+    border-radius: 6px;
     padding: 8px 20px;
     font-family: {FONT_BODY};
     font-size: 13px;
@@ -162,11 +163,11 @@ QPushButton:pressed {{
 }}
 
 QPushButton:disabled {{
-    background-color: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.3);
+    background-color: #E8E8E8;
+    color: #999999;
 }}
 
-/* 次要按钮 — 描边风格 */
+/* 次要按钮 — 黑色描边 */
 QPushButton[secondary="true"] {{
     background-color: transparent;
     color: {APPLE_BLUE};
@@ -174,25 +175,53 @@ QPushButton[secondary="true"] {{
 }}
 
 QPushButton[secondary="true"]:hover {{
-    background-color: rgba(0, 113, 227, 0.1);
+    background-color: rgba(0, 0, 0, 0.05);
+}}
+
+/* 工具栏按钮 — 描边小按钮（覆盖全局 QPushButton 黑底） */
+QPushButton[toolbar="true"] {{
+    background-color: transparent;
+    color: {TEXT_PRIMARY};
+    border: 1px solid #D0D0D0;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-family: {FONT_BODY};
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 28px;
+}}
+
+QPushButton[toolbar="true"]:hover {{
+    background-color: #F0F0F0;
+    border-color: #BBBBBB;
+}}
+
+QPushButton[toolbar="true"]:pressed {{
+    background-color: #E0E0E0;
+}}
+
+QPushButton[toolbar="true"]:disabled {{
+    background-color: transparent;
+    color: #BBBBBB;
+    border-color: #E0E0E0;
 }}
 
 /* 工具栏内标签 */
 QLabel {{
     font-family: {FONT_BODY};
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.85);
+    color: {TEXT_PRIMARY};
     letter-spacing: -0.2px;
 }}
 
 QLabel[pageInfo="true"] {{
-    color: rgba(255, 255, 255, 0.6);
+    color: {TEXT_SECONDARY};
     font-size: 12px;
 }}
 
 /* 状态栏 */
 QStatusBar {{
-    background-color: rgba(255, 255, 255, 0.9);
+    background-color: #FAFAFA;
     border-top: 1px solid {SEPARATOR};
     font-family: {FONT_BODY};
     font-size: 12px;
@@ -203,13 +232,13 @@ QStatusBar {{
 
 /* 数值输入 */
 QSpinBox {{
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid #E0E0E0;
     border-radius: 6px;
     padding: 4px 8px;
     font-family: {FONT_BODY};
     font-size: 13px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: #FFFFFF;
+    color: {TEXT_PRIMARY};
     min-width: 50px;
 }}
 
@@ -223,30 +252,30 @@ QSpinBox::up-arrow {{
     image: none;
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
-    border-bottom: 5px solid rgba(255, 255, 255, 0.6);
+    border-bottom: 5px solid #666666;
 }}
 
 QSpinBox::down-arrow {{
     image: none;
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
-    border-top: 5px solid rgba(255, 255, 255, 0.6);
+    border-top: 5px solid #666666;
 }}
 
 /* 下拉框 */
 QComboBox {{
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid #E0E0E0;
     border-radius: 6px;
     padding: 4px 8px;
     font-family: {FONT_BODY};
     font-size: 13px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: #FFFFFF;
+    color: {TEXT_PRIMARY};
     min-width: 90px;
 }}
 
 QComboBox:hover {{
-    border-color: rgba(255, 255, 255, 0.4);
+    border-color: #999999;
 }}
 
 QComboBox::drop-down {{
@@ -255,10 +284,11 @@ QComboBox::drop-down {{
 }}
 
 QComboBox QAbstractItemView {{
-    background-color: {DARK_BG};
-    color: white;
+    background-color: #FFFFFF;
+    color: {TEXT_PRIMARY};
     selection-background-color: {APPLE_BLUE};
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    selection-color: {WHITE};
+    border: 1px solid {SEPARATOR};
     border-radius: 6px;
 }}
 """
@@ -331,7 +361,7 @@ class MainWindow(QMainWindow):
         # 右侧面板: CropOptions + ExtractedImages
         right_panel = QWidget()
         right_panel.setFixedWidth(220)
-        right_panel.setStyleSheet("background-color: #2c2c2e;")
+        right_panel.setStyleSheet("background-color: #F5F5F5;")
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
@@ -346,52 +376,65 @@ class MainWindow(QMainWindow):
 
         outer_layout.addWidget(content, 1)
 
-        # 底部按钮栏
+        # 底部状态栏 — 紧凑 28px
         bottom_bar = QWidget()
-        bottom_bar.setFixedHeight(44)
-        bottom_bar.setStyleSheet("background-color: #2c2c2e;")
+        bottom_bar.setFixedHeight(28)
+        bottom_bar.setStyleSheet("background-color: #FAFAFA; border-top: 1px solid #E0E0E0;")
         bottom_layout = QHBoxLayout(bottom_bar)
-        bottom_layout.setContentsMargins(10, 6, 10, 6)
+        bottom_layout.setContentsMargins(12, 0, 12, 0)
         bottom_layout.setSpacing(8)
 
-        # Grid/Single 切换按钮组
+        # 左侧: 版本 + 状态
+        self._lbl_bottom_status = QLabel("PhotoCrop v0.5.2 — Ready")
+        self._lbl_bottom_status.setStyleSheet(f"""
+            color: #999999;
+            font-family: {FONT_BODY};
+            font-size: 11px;
+        """)
+        bottom_layout.addWidget(self._lbl_bottom_status)
+
+        bottom_layout.addStretch()
+
+        # 右侧: Grid/Single 切换 + 导出
         self._btn_grid = QPushButton("Grid View")
         self._btn_grid.setCheckable(True)
         self._btn_grid.setChecked(True)
-        self._btn_grid.setFixedWidth(80)
         self._btn_grid.setStyleSheet(self._view_toggle_style(True))
         self._btn_grid.clicked.connect(lambda: self._switch_view(0))
         bottom_layout.addWidget(self._btn_grid)
 
+        sep_label = QLabel("|")
+        sep_label.setStyleSheet("color: #D0D0D0; font-size: 13px;")
+        bottom_layout.addWidget(sep_label)
+
         self._btn_single = QPushButton("Single View")
         self._btn_single.setCheckable(True)
-        self._btn_single.setFixedWidth(80)
         self._btn_single.setStyleSheet(self._view_toggle_style(False))
         self._btn_single.clicked.connect(lambda: self._switch_view(1))
         bottom_layout.addWidget(self._btn_single)
 
-        bottom_layout.addStretch()
+        bottom_layout.addSpacing(16)
 
-        # 导出按钮 (也放在底部)
-        self._btn_export_page = QPushButton("导出当前页")
-        self._btn_export_page.setProperty("secondary", "true")
+        # 导出按钮 — 实心黑底
+        self._btn_export_page = QPushButton("Export")
         self._btn_export_page.setStyleSheet(f"""
             QPushButton {{
-                background-color: transparent;
-                color: {APPLE_BLUE};
-                border: 1px solid {APPLE_BLUE};
+                background-color: {APPLE_BLUE};
+                color: {WHITE};
+                border: none;
                 border-radius: 6px;
-                padding: 6px 16px;
+                padding: 4px 20px;
                 font-family: {FONT_BODY};
-                font-size: 12px;
-                min-height: 24px;
+                font-size: 13px;
+                font-weight: 600;
+                min-height: 22px;
             }}
             QPushButton:hover {{
-                background-color: rgba(0, 113, 227, 0.1);
+                background-color: {APPLE_BLUE_HOVER};
             }}
             QPushButton:disabled {{
-                color: rgba(255,255,255,0.3);
-                border-color: rgba(255,255,255,0.15);
+                background-color: #E8E8E8;
+                color: #999999;
             }}
         """)
         self._btn_export_page.clicked.connect(self._on_export)
@@ -411,6 +454,7 @@ class MainWindow(QMainWindow):
 
         # 加载图片 / PDF
         self._btn_load = QPushButton("加载图片")
+        self._btn_load.setProperty("toolbar", "true")
         self._btn_load.setToolTip("打开图片或 PDF 文件")
         toolbar.addWidget(self._btn_load)
 
@@ -421,6 +465,7 @@ class MainWindow(QMainWindow):
         page_layout.setSpacing(6)
 
         self._btn_prev_page = QPushButton("◀")
+        self._btn_prev_page.setProperty("toolbar", "true")
         self._btn_prev_page.setFixedSize(32, 32)
         self._btn_prev_page.setToolTip("上一页（←）")
         page_layout.addWidget(self._btn_prev_page)
@@ -432,6 +477,7 @@ class MainWindow(QMainWindow):
         page_layout.addWidget(self._lbl_page_info)
 
         self._btn_next_page = QPushButton("▶")
+        self._btn_next_page.setProperty("toolbar", "true")
         self._btn_next_page.setFixedSize(32, 32)
         self._btn_next_page.setToolTip("下一页（→）")
         page_layout.addWidget(self._btn_next_page)
@@ -452,6 +498,7 @@ class MainWindow(QMainWindow):
 
         # 检测
         self._btn_detect = QPushButton("检测照片")
+        self._btn_detect.setProperty("toolbar", "true")
         self._btn_detect.setToolTip("自动检测页面中的照片")
         self._btn_detect.setEnabled(False)
         toolbar.addWidget(self._btn_detect)
@@ -468,7 +515,7 @@ class MainWindow(QMainWindow):
 
         # 清除
         self._btn_clear = QPushButton("清除裁剪框")
-        self._btn_clear.setProperty("secondary", "true")
+        self._btn_clear.setProperty("toolbar", "true")
         self._btn_clear.setEnabled(False)
         toolbar.addWidget(self._btn_clear)
 
@@ -479,6 +526,7 @@ class MainWindow(QMainWindow):
 
         # 导出
         self._btn_export = QPushButton("导出全部")
+        self._btn_export.setProperty("toolbar", "true")
         self._btn_export.setToolTip("导出所有裁剪框为单独图片")
         self._btn_export.setEnabled(False)
         toolbar.addWidget(self._btn_export)
@@ -1332,6 +1380,12 @@ class MainWindow(QMainWindow):
         else:
             self._lbl_status.setText(f"已加载: {w} × {h} 像素")
 
+        # 更新底部状态栏
+        img_count = len(self._sessions)
+        self._lbl_bottom_status.setText(
+            f"PhotoCrop v0.5.2 — {img_count} images — Ready"
+        )
+
     def _on_detection_done(self, count: int) -> None:
         self._update_button_states()
         self._update_image_list_panel()
@@ -1340,10 +1394,17 @@ class MainWindow(QMainWindow):
         # 防抖：50ms 内多次信号只触发一次按钮状态刷新
         self._update_timer.start(50)
         count = len(self._canvas.crop_rects)
+        img_count = len(self._sessions)
         if count > 0:
             self._lbl_info.setText(f"{count} 个裁剪框")
+            self._lbl_bottom_status.setText(
+                f"PhotoCrop v0.5.2 — {img_count} images, {count} crops — Ready"
+            )
         else:
             self._lbl_info.setText("")
+            self._lbl_bottom_status.setText(
+                f"PhotoCrop v0.5.2 — {img_count} images — Ready"
+            )
         # 更新图像列表面板中的裁剪框计数
         self._update_image_list_panel()
 
@@ -1453,27 +1514,26 @@ class MainWindow(QMainWindow):
         if checked:
             return f"""
                 QPushButton {{
-                    background-color: {APPLE_BLUE};
-                    color: white;
+                    background-color: transparent;
+                    color: #000000;
                     border: none;
-                    border-radius: 6px;
-                    padding: 4px 12px;
                     font-family: {FONT_BODY};
-                    font-size: 11px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    padding: 2px 4px;
                 }}
             """
         return f"""
             QPushButton {{
                 background-color: transparent;
-                color: #86868b;
-                border: 1px solid rgba(255,255,255,0.15);
-                border-radius: 6px;
-                padding: 4px 12px;
+                color: #808080;
+                border: none;
                 font-family: {FONT_BODY};
-                font-size: 11px;
+                font-size: 13px;
+                font-weight: 400;
+                padding: 2px 4px;
             }}
             QPushButton:hover {{
-                color: {TEXT_PRIMARY};
-                border-color: rgba(255,255,255,0.3);
+                color: #1A1A1A;
             }}
         """

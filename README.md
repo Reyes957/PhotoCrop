@@ -139,7 +139,7 @@ photocrop/
   │   ├── filters.py           Small-box filtering, IoU dedup, count limiting
   │   └── rotation_estimator.py  Rotation angle estimation
   │
-  ├── ui/                  PySide6 GUI (Apple design)
+  ├── ui/                  PySide6 GUI (B&W minimal design)
   │   ├── main_window.py       Toolbar + status bar + shortcuts + multi-image session
   │   ├── canvas.py            Canvas with interactive crop boxes + undo/redo + sync/flip
   │   ├── crop_item.py         Editable crop region widget (rotation, handles, floating toolbar, aspect lock)

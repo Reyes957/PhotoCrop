@@ -31,11 +31,11 @@ from PySide6.QtWidgets import (
 # 样式常量
 # ============================================================
 
-PANEL_BG = "#2c2c2e"
-TEXT_PRIMARY = "#f5f5f7"
-TEXT_SECONDARY = "#86868b"
-APPLE_BLUE = "#0071e3"
-DARK_BG = "#1d1d1f"
+PANEL_BG = "#F5F5F5"
+TEXT_PRIMARY = "#1A1A1A"
+TEXT_SECONDARY = "#666666"
+APPLE_BLUE = "#000000"
+DARK_BG = "#F5F5F5"
 FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
@@ -66,7 +66,7 @@ class ExportDialog(QDialog):
             }}
             QGroupBox {{
                 color: {TEXT_PRIMARY};
-                border: 1px solid rgba(255,255,255,0.1);
+                border: 1px solid #E0E0E0;
                 border-radius: 6px;
                 margin-top: 8px;
                 padding-top: 16px;
@@ -80,9 +80,9 @@ class ExportDialog(QDialog):
                 color: {TEXT_SECONDARY};
             }}
             QComboBox, QSpinBox, QLineEdit {{
-                background-color: rgba(255,255,255,0.08);
+                background-color: #FFFFFF;
                 color: {TEXT_PRIMARY};
-                border: 1px solid rgba(255,255,255,0.15);
+                border: 1px solid #E0E0E0;
                 border-radius: 4px;
                 padding: 4px 8px;
                 font-family: {FONT_FAMILY};
@@ -90,7 +90,7 @@ class ExportDialog(QDialog):
                 min-height: 22px;
             }}
             QComboBox:focus, QSpinBox:focus, QLineEdit:focus {{
-                border-color: {APPLE_BLUE};
+                border-color: #999999;
             }}
             QCheckBox {{
                 color: {TEXT_PRIMARY};
@@ -102,8 +102,8 @@ class ExportDialog(QDialog):
                 width: 16px;
                 height: 16px;
                 border-radius: 3px;
-                border: 1px solid rgba(255,255,255,0.3);
-                background: rgba(255,255,255,0.08);
+                border: 1px solid #999999;
+                background: #FFFFFF;
             }}
             QCheckBox::indicator:checked {{
                 background: {APPLE_BLUE};
@@ -111,7 +111,7 @@ class ExportDialog(QDialog):
             }}
             QSlider::groove:horizontal {{
                 height: 4px;
-                background: rgba(255,255,255,0.15);
+                background: #CCCCCC;
                 border-radius: 2px;
             }}
             QSlider::handle:horizontal {{
@@ -132,7 +132,7 @@ class ExportDialog(QDialog):
                 min-height: 28px;
             }}
             QPushButton:hover {{
-                background-color: #2997ff;
+                background-color: #333333;
             }}
             QPushButton[secondary="true"] {{
                 background-color: transparent;
@@ -275,7 +275,7 @@ class ExportDialog(QDialog):
         self._btn_export_all = QPushButton(f"导出全部 ({self._total_crops})")
         self._btn_export_all.setStyleSheet(f"""
             QPushButton {{
-                background-color: #5856d6;
+                background-color: #000000;
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -285,7 +285,7 @@ class ExportDialog(QDialog):
                 min-height: 28px;
             }}
             QPushButton:hover {{
-                background-color: #6e6ce0;
+                background-color: #333333;
             }}
         """)
         self._btn_export_all.clicked.connect(lambda: self._on_export("all"))

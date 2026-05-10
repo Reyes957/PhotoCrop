@@ -40,12 +40,12 @@ class PageCropRef(NamedTuple):
 # 样式常量
 # ============================================================
 
-PANEL_BG = "#2c2c2e"
-CARD_BG = "#3a3a3c"
-TEXT_PRIMARY = "#f5f5f7"
-TEXT_SECONDARY = "#86868b"
-APPLE_BLUE = "#0071e3"
-DANGER = "#ff3b30"
+PANEL_BG = "#F5F5F5"
+CARD_BG = "#FFFFFF"
+TEXT_PRIMARY = "#1A1A1A"
+TEXT_SECONDARY = "#666666"
+APPLE_BLUE = "#000000"
+DANGER = "#CC0000"
 FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
@@ -121,12 +121,15 @@ class ExtractedImagesPanel(QWidget):
                 border: none;
             }
             QScrollBar:vertical {
-                width: 6px;
+                width: 4px;
                 background: transparent;
             }
             QScrollBar::handle:vertical {
-                background: rgba(255,255,255,0.2);
-                border-radius: 3px;
+                background: #CCCCCC;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #999999;
             }
         """)
 
@@ -174,7 +177,7 @@ class ExtractedImagesPanel(QWidget):
             font-size: 11px;
             font-weight: 600;
             padding: 8px 0 4px 4px;
-            border-top: 1px solid rgba(255,255,255,0.08);
+            border-top: 1px solid #E0E0E0;
         """)
         row = self._grid_layout.rowCount()
         self._grid_layout.addWidget(page_label, row, 0, 1, 2)
@@ -281,14 +284,14 @@ class ExtractedImagesPanel(QWidget):
             # 页面分隔标签
             page_label = QLabel(f"  Page {page_idx + 1}")
             is_current = page_idx == current_page
-            highlight = "color: #0071e3; font-weight: 700;" if is_current else ""
+            highlight = "color: #000000; font-weight: 700;" if is_current else ""
             page_label.setStyleSheet(f"""
                 color: {TEXT_SECONDARY};
                 font-family: {FONT_FAMILY};
                 font-size: 11px;
                 font-weight: 600;
                 padding: 8px 0 4px 4px;
-                border-top: 1px solid rgba(255,255,255,0.08);
+                border-top: 1px solid #E0E0E0;
                 {highlight}
             """)
             row = self._grid_layout.rowCount()
@@ -324,7 +327,7 @@ class ExtractedImagesPanel(QWidget):
                 border-radius: 6px;
             }}
             QWidget:hover {{
-                background-color: #48484a;
+                background-color: #F0F0F0;
             }}
         """)
 
@@ -336,14 +339,14 @@ class ExtractedImagesPanel(QWidget):
         thumb_label = QLabel()
         thumb_label.setFixedSize(80, 80)
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb_label.setStyleSheet("border-radius: 4px; background: #2c2c2e;")
+        thumb_label.setStyleSheet("border-radius: 4px; background: #E8E8E8;")
 
         pixmap = self._get_thumbnail(index, rect)
         if pixmap:
             thumb_label.setPixmap(pixmap)
         else:
             thumb_label.setText("?")
-            thumb_label.setStyleSheet(f"color: {TEXT_SECONDARY}; border-radius: 4px; background: #2c2c2e;")
+            thumb_label.setStyleSheet(f"color: {TEXT_SECONDARY}; border-radius: 4px; background: #E8E8E8;")
 
         # 点击选中
         thumb_label.mousePressEvent = lambda e, idx=index: self.crop_selected.emit(idx)
@@ -415,7 +418,7 @@ class ExtractedImagesPanel(QWidget):
                 border-radius: 6px;
             }}
             QWidget:hover {{
-                background-color: #48484a;
+                background-color: #F0F0F0;
             }}
         """)
 
@@ -426,13 +429,13 @@ class ExtractedImagesPanel(QWidget):
         thumb_label = QLabel()
         thumb_label.setFixedSize(80, 80)
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        thumb_label.setStyleSheet("border-radius: 4px; background: #2c2c2e;")
+        thumb_label.setStyleSheet("border-radius: 4px; background: #E8E8E8;")
 
         if pixmap:
             thumb_label.setPixmap(pixmap)
         else:
             thumb_label.setText("?")
-            thumb_label.setStyleSheet(f"color: {TEXT_SECONDARY}; border-radius: 4px; background: #2c2c2e;")
+            thumb_label.setStyleSheet(f"color: {TEXT_SECONDARY}; border-radius: 4px; background: #E8E8E8;")
 
         thumb_label.mousePressEvent = lambda e, idx=global_idx: self.crop_selected.emit(idx)
         layout.addWidget(thumb_label)

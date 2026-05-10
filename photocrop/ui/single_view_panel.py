@@ -32,11 +32,11 @@ from photocrop.utils.crop_rect import CropRect
 # 样式常量
 # ============================================================
 
-BG_COLOR = "#1d1d1f"
-PANEL_BG = "#2c2c2e"
-TEXT_PRIMARY = "#f5f5f7"
-TEXT_SECONDARY = "#86868b"
-APPLE_BLUE = "#0071e3"
+BG_COLOR = "#E8E8E8"
+PANEL_BG = "#F5F5F5"
+TEXT_PRIMARY = "#1A1A1A"
+TEXT_SECONDARY = "#666666"
+APPLE_BLUE = "#000000"
 FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
@@ -106,7 +106,7 @@ class SingleViewPanel(QWidget):
                 font-size: 12px;
             }}
             QPushButton:hover {{
-                background-color: rgba(0, 113, 227, 0.1);
+                background-color: rgba(0, 0, 0, 0.05);
             }}
         """)
         btn_exit.clicked.connect(self.exit_requested.emit)
@@ -124,7 +124,7 @@ class SingleViewPanel(QWidget):
         self._preview_label = QLabel()
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setStyleSheet(f"""
-            background-color: #2c2c2e;
+            background-color: #F5F5F5;
             border-radius: 8px;
             color: {TEXT_SECONDARY};
             font-family: {FONT_FAMILY};
@@ -233,12 +233,12 @@ class SingleViewPanel(QWidget):
             x1, y1, x2, y2 = rect.to_pixel_tuple()
             is_current = (i == self._current_index)
             pen = QPen(
-                QColor(APPLE_BLUE) if is_current else QColor(255, 255, 255, 100),
+                QColor(APPLE_BLUE) if is_current else QColor(0, 0, 0, 40),
                 2.0 if is_current else 1.0,
             )
             rect_item = self._overview_scene.addRect(x1, y1, x2 - x1, y2 - y1, pen)
             if is_current:
-                rect_item.setBrush(QBrush(QColor(0, 113, 227, 30)))
+                rect_item.setBrush(QBrush(QColor(0, 0, 0, 20)))
             self._rect_items.append(rect_item)
 
         self._overview_view.fitInView(
@@ -251,12 +251,12 @@ class SingleViewPanel(QWidget):
         for i, rect_item in enumerate(self._rect_items):
             is_current = (i == self._current_index)
             pen = QPen(
-                QColor(APPLE_BLUE) if is_current else QColor(255, 255, 255, 100),
+                QColor(APPLE_BLUE) if is_current else QColor(0, 0, 0, 40),
                 2.0 if is_current else 1.0,
             )
             rect_item.setPen(pen)
             if is_current:
-                rect_item.setBrush(QBrush(QColor(0, 113, 227, 30)))
+                rect_item.setBrush(QBrush(QColor(0, 0, 0, 20)))
             else:
                 rect_item.setBrush(Qt.BrushStyle.NoBrush)
 

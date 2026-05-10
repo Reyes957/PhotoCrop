@@ -139,7 +139,7 @@ photocrop/
   │   ├── filters.py           小框过滤、IoU 去重、数量限制
   │   └── rotation_estimator.py  旋转角度估算
   │
-  ├── ui/              PySide6 图形界面（Apple 设计风格）
+  ├── ui/              PySide6 图形界面（黑白极简设计）
   │   ├── main_window.py       工具栏 + 状态栏 + 快捷键 + 多图 session
   │   ├── canvas.py            画布 + 交互裁剪框 + 撤销/重做 + 同步/翻转
   │   ├── crop_item.py         可拖拽裁剪框（旋转、手柄、浮动工具栏、宽高比锁定）

@@ -27,10 +27,10 @@ from photocrop.ui.utils import pil_to_pixmap
 # 样式常量
 # ============================================================
 
-PANEL_BG = "#2c2c2e"
-TEXT_PRIMARY = "#f5f5f7"
-TEXT_SECONDARY = "#86868b"
-SELECTED_BORDER = "#0071e3"
+PANEL_BG = "#F5F5F5"
+TEXT_PRIMARY = "#1A1A1A"
+TEXT_SECONDARY = "#666666"
+SELECTED_BORDER = "#000000"
 FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
@@ -73,7 +73,7 @@ class ImageListPanel(QWidget):
             font-weight: 600;
             letter-spacing: 0.5px;
             padding-left: 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+            border-bottom: 1px solid #E0E0E0;
         """)
         layout.addWidget(header)
 
@@ -94,11 +94,12 @@ class ImageListPanel(QWidget):
                 min-height: 50px;
             }}
             QListWidget::item:selected {{
-                background-color: rgba(0, 113, 227, 0.15);
+                background-color: rgba(0, 0, 0, 0.08);
                 border-left: 3px solid {SELECTED_BORDER};
+                color: {TEXT_PRIMARY};
             }}
             QListWidget::item:hover:!selected {{
-                background-color: rgba(255, 255, 255, 0.05);
+                background-color: rgba(0, 0, 0, 0.03);
             }}
         """)
         self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -115,7 +116,7 @@ class ImageListPanel(QWidget):
             font-family: {FONT_FAMILY};
             font-size: 11px;
             padding-left: 10px;
-            border-top: 1px solid rgba(255,255,255,0.08);
+            border-top: 1px solid #E0E0E0;
         """)
         layout.addWidget(self._lbl_total)
 
@@ -226,7 +227,7 @@ class ImageListPanel(QWidget):
         # 缩略图
         thumb_label = QLabel()
         thumb_label.setFixedSize(44, 44)
-        thumb_label.setStyleSheet("border-radius: 4px; background: #3a3a3c;")
+        thumb_label.setStyleSheet("border-radius: 4px; background: #E0E0E0;")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = pil_to_pixmap(thumbnail).scaled(
             44, 44, Qt.AspectRatioMode.KeepAspectRatio,
@@ -306,7 +307,7 @@ class ImageListPanel(QWidget):
         # 缩略图
         thumb_label = QLabel()
         thumb_label.setFixedSize(28, 28)
-        thumb_label.setStyleSheet("border-radius: 3px; background: #3a3a3c;")
+        thumb_label.setStyleSheet("border-radius: 3px; background: #E0E0E0;")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = pil_to_pixmap(first_thumb).scaled(
             28, 28, Qt.AspectRatioMode.KeepAspectRatio,
@@ -340,7 +341,7 @@ class ImageListPanel(QWidget):
         # 缩略图
         thumb_label = QLabel()
         thumb_label.setFixedSize(36, 36)
-        thumb_label.setStyleSheet("border-radius: 3px; background: #3a3a3c;")
+        thumb_label.setStyleSheet("border-radius: 3px; background: #E0E0E0;")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if thumbnail is not None:
             pixmap = pil_to_pixmap(thumbnail).scaled(
@@ -355,7 +356,7 @@ class ImageListPanel(QWidget):
                 font-family: {FONT_FAMILY};
                 font-size: 10px;
                 border-radius: 3px;
-                background: #3a3a3c;
+                background: #E0E0E0;
             """)
         layout.addWidget(thumb_label)
 
@@ -439,9 +440,9 @@ class ImageListPanel(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background-color: {PANEL_BG};
+                background-color: #FFFFFF;
                 color: {TEXT_PRIMARY};
-                border: 1px solid rgba(255,255,255,0.15);
+                border: 1px solid #E0E0E0;
                 border-radius: 6px;
                 padding: 4px;
                 font-family: {FONT_FAMILY};
@@ -452,7 +453,7 @@ class ImageListPanel(QWidget):
                 border-radius: 4px;
             }}
             QMenu::item:selected {{
-                background-color: rgba(0, 113, 227, 0.3);
+                background-color: #F0F0F0;
             }}
         """)
         action_detect = menu.addAction("重新检测")

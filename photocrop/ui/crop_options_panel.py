@@ -3,6 +3,8 @@ CropOptionsPanel — 裁剪框属性编辑面板
 
 对标 AutoCropper 右侧 CROP OPTIONS。
 显示选中裁剪框的 Width/Height/X/Y/Rotation，支持实时编辑。
+
+v0.5.3: 自定义 56px 标签列布局，标签与单位分行显示。
 """
 
 from __future__ import annotations
@@ -11,7 +13,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -23,27 +24,22 @@ from PySide6.QtWidgets import (
 from photocrop.utils.crop_rect import CropRect
 
 # ============================================================
-# 样式常量
+# 样式常量 — 黑白极简
 # ============================================================
 
-PANEL_BG = "#2c2c2e"
-TEXT_PRIMARY = "#f5f5f7"
-TEXT_SECONDARY = "#86868b"
-APPLE_BLUE = "#0071e3"
+PANEL_BG = "#F5F5F5"
+TEXT_PRIMARY = "#1A1A1A"
+TEXT_SECONDARY = "#666666"
+APPLE_BLUE = "#000000"
 FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 class CropOptionsPanel(QWidget):
-    """裁剪框属性编辑面板
-
-    Signals:
-        rect_changed: 裁剪框属性被修改时发出（实时，用于预览更新）
-        editing_finished: 编辑完成时发出（用于推入撤销栈）
-    """
+    """裁剪框属性编辑面板 — 黑白极简风格（优雅表单排布）"""
 
     rect_changed = Signal()
     editing_finished = Signal()
-    aspect_ratio_changed = Signal(float)  # 发出 ratio 值（None → -1, Free → 0, 具体值 → ratio）
+    aspect_ratio_changed = Signal(float)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -59,7 +55,7 @@ class CropOptionsPanel(QWidget):
         self._current_image_size: tuple = (0, 0)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(8)
 
         # 标题
@@ -80,35 +76,30 @@ class CropOptionsPanel(QWidget):
             color: {TEXT_SECONDARY};
             font-family: {FONT_FAMILY};
             font-size: 12px;
-            padding: 30px 0;
+            padding: 40px 0;
         """)
         layout.addWidget(self._placeholder)
 
-        # 属性表单容器
+        # ===== 属性表单容器 — 优雅排布 =====
         self._form_widget = QWidget()
-        form_layout = QFormLayout(self._form_widget)
+        form_layout = QVBoxLayout(self._form_widget)
         form_layout.setContentsMargins(0, 0, 0, 0)
-        form_layout.setSpacing(6)
-        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form_layout.setSpacing(10)  # 行间距 10px
 
-        label_style = f"""
-            color: {TEXT_PRIMARY};
-            font-family: {FONT_FAMILY};
-            font-size: 12px;
-        """
-        spin_style = f"""
+        # 通用输入框样式
+        input_style = f"""
             QSpinBox, QDoubleSpinBox {{
-                background-color: rgba(255, 255, 255, 0.08);
+                background-color: #FFFFFF;
                 color: {TEXT_PRIMARY};
-                border: 1px solid rgba(255, 255, 255, 0.15);
+                border: 1px solid #E0E0E0;
                 border-radius: 4px;
                 padding: 3px 6px;
                 font-family: {FONT_FAMILY};
                 font-size: 12px;
-                min-height: 22px;
+                min-height: 24px;
             }}
             QSpinBox:focus, QDoubleSpinBox:focus {{
-                border-color: {APPLE_BLUE};
+                border-color: #999999;
             }}
             QSpinBox::up-button, QSpinBox::down-button,
             QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
@@ -118,119 +109,170 @@ class CropOptionsPanel(QWidget):
             }}
         """
 
-        # Width
-        lbl_w = QLabel("Width (px)")
-        lbl_w.setStyleSheet(label_style)
+        # --- Width 行 ---
+        row_w = self._create_form_row("Width", "px")
         self._spin_width = QSpinBox()
         self._spin_width.setRange(10, 10000)
-        self._spin_width.setStyleSheet(spin_style)
+        self._spin_width.setStyleSheet(input_style)
         self._spin_width.valueChanged.connect(self._on_value_changed)
         self._spin_width.editingFinished.connect(self._on_editing_finished)
-        form_layout.addRow(lbl_w, self._spin_width)
+        row_w.layout().addWidget(self._spin_width)
+        form_layout.addWidget(row_w)
 
-        # Height
-        lbl_h = QLabel("Height (px)")
-        lbl_h.setStyleSheet(label_style)
+        # --- Height 行 ---
+        row_h = self._create_form_row("Height", "px")
         self._spin_height = QSpinBox()
         self._spin_height.setRange(10, 10000)
-        self._spin_height.setStyleSheet(spin_style)
+        self._spin_height.setStyleSheet(input_style)
         self._spin_height.valueChanged.connect(self._on_value_changed)
         self._spin_height.editingFinished.connect(self._on_editing_finished)
-        form_layout.addRow(lbl_h, self._spin_height)
+        row_h.layout().addWidget(self._spin_height)
+        form_layout.addWidget(row_h)
 
-        # X Position
-        lbl_x = QLabel("X (px)")
-        lbl_x.setStyleSheet(label_style)
+        # --- X 行 ---
+        row_x = self._create_form_row("X", "px")
         self._spin_x = QSpinBox()
         self._spin_x.setRange(0, 10000)
-        self._spin_x.setStyleSheet(spin_style)
+        self._spin_x.setStyleSheet(input_style)
         self._spin_x.valueChanged.connect(self._on_value_changed)
         self._spin_x.editingFinished.connect(self._on_editing_finished)
-        form_layout.addRow(lbl_x, self._spin_x)
+        row_x.layout().addWidget(self._spin_x)
+        form_layout.addWidget(row_x)
 
-        # Y Position
-        lbl_y = QLabel("Y (px)")
-        lbl_y.setStyleSheet(label_style)
+        # --- Y 行 ---
+        row_y = self._create_form_row("Y", "px")
         self._spin_y = QSpinBox()
         self._spin_y.setRange(0, 10000)
-        self._spin_y.setStyleSheet(spin_style)
+        self._spin_y.setStyleSheet(input_style)
         self._spin_y.valueChanged.connect(self._on_value_changed)
         self._spin_y.editingFinished.connect(self._on_editing_finished)
-        form_layout.addRow(lbl_y, self._spin_y)
+        row_y.layout().addWidget(self._spin_y)
+        form_layout.addWidget(row_y)
 
-        # Rotation
-        lbl_rot = QLabel("Rotation (deg)")
-        lbl_rot.setStyleSheet(label_style)
+        # --- Rotation 行（带 Reset 按钮）---
+        row_rot = QWidget()
+        rot_layout = QHBoxLayout(row_rot)
+        rot_layout.setContentsMargins(0, 0, 0, 0)
+        rot_layout.setSpacing(8)
+
+        # 标签列（固定 56px）
+        lbl_rot = self._create_label_col("Rotation", "")
+        rot_layout.addWidget(lbl_rot)
+
+        # 输入框 + Reset
         self._spin_rotation = QDoubleSpinBox()
         self._spin_rotation.setRange(-180.0, 180.0)
         self._spin_rotation.setSingleStep(0.5)
         self._spin_rotation.setDecimals(1)
-        self._spin_rotation.setStyleSheet(spin_style)
+        self._spin_rotation.setStyleSheet(input_style)
         self._spin_rotation.valueChanged.connect(self._on_value_changed)
         self._spin_rotation.editingFinished.connect(self._on_editing_finished)
+        rot_layout.addWidget(self._spin_rotation, 1)
 
-        # 重置旋转按钮
         self._btn_reset_rotation = QPushButton("Reset")
-        self._btn_reset_rotation.setFixedSize(50, 22)
+        self._btn_reset_rotation.setFixedSize(44, 24)
         self._btn_reset_rotation.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
-                color: {APPLE_BLUE};
-                border: 1px solid {APPLE_BLUE};
+                color: {TEXT_SECONDARY};
+                border: 1px solid #D0D0D0;
                 border-radius: 4px;
                 font-family: {FONT_FAMILY};
                 font-size: 10px;
                 padding: 0;
             }}
             QPushButton:hover {{
-                background-color: rgba(0, 113, 227, 0.1);
+                background-color: #F0F0F0;
+                border-color: #BBBBBB;
             }}
         """)
         self._btn_reset_rotation.clicked.connect(self._on_reset_rotation)
-
-        # Rotation 行：Spin + Reset 按钮
-        rot_widget = QWidget()
-        rot_layout = QHBoxLayout(rot_widget)
-        rot_layout.setContentsMargins(0, 0, 0, 0)
-        rot_layout.setSpacing(4)
-        rot_layout.addWidget(self._spin_rotation)
         rot_layout.addWidget(self._btn_reset_rotation)
-        form_layout.addRow(lbl_rot, rot_widget)
+        form_layout.addWidget(row_rot)
 
-        # Aspect Ratio
-        lbl_ar = QLabel("Aspect Ratio")
-        lbl_ar.setStyleSheet(label_style)
+        # --- Aspect Ratio 行 ---
+        row_ar = QWidget()
+        ar_layout = QHBoxLayout(row_ar)
+        ar_layout.setContentsMargins(0, 0, 0, 0)
+        ar_layout.setSpacing(8)
+
+        lbl_ar = self._create_label_col("Aspect", "")
+        ar_layout.addWidget(lbl_ar)
+
         self._combo_aspect = QComboBox()
         self._combo_aspect.addItems(["Free", "Original", "1:1", "3:2", "4:3", "16:9"])
         self._combo_aspect.setStyleSheet(f"""
             QComboBox {{
-                background-color: rgba(255,255,255,0.08);
+                background-color: #FFFFFF;
                 color: {TEXT_PRIMARY};
-                border: 1px solid rgba(255,255,255,0.15);
+                border: 1px solid #E0E0E0;
                 border-radius: 4px;
                 padding: 3px 6px;
                 font-family: {FONT_FAMILY};
                 font-size: 12px;
-                min-height: 22px;
+                min-height: 24px;
+            }}
+            QComboBox:focus {{
+                border-color: #999999;
             }}
         """)
         self._combo_aspect.currentIndexChanged.connect(self._on_aspect_changed)
-        form_layout.addRow(lbl_ar, self._combo_aspect)
+        ar_layout.addWidget(self._combo_aspect, 1)
+        form_layout.addWidget(row_ar)
 
         layout.addWidget(self._form_widget)
         self._form_widget.setVisible(False)
-
         layout.addStretch()
+
+    # ===== 辅助：创建表单行 =====
+
+    def _create_form_row(self, label: str, unit: str) -> QWidget:
+        """创建一行：固定56px标签列 + 输入框槽位"""
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(8)
+
+        lbl_widget = self._create_label_col(label, unit)
+        row_layout.addWidget(lbl_widget)
+        return row
+
+    def _create_label_col(self, label: str, unit: str) -> QWidget:
+        """创建标签列：主标签 + 单位（换行），固定 56px，右对齐"""
+        col = QWidget()
+        col.setFixedWidth(56)
+        col_layout = QVBoxLayout(col)
+        col_layout.setContentsMargins(0, 0, 0, 0)
+        col_layout.setSpacing(0)
+        col_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        lbl_main = QLabel(label)
+        lbl_main.setStyleSheet(f"""
+            color: {TEXT_SECONDARY};
+            font-family: {FONT_FAMILY};
+            font-size: 11px;
+        """)
+        lbl_main.setAlignment(Qt.AlignmentFlag.AlignRight)
+        col_layout.addWidget(lbl_main)
+
+        if unit:
+            lbl_unit = QLabel(unit)
+            lbl_unit.setStyleSheet(f"""
+                color: {TEXT_SECONDARY};
+                font-family: {FONT_FAMILY};
+                font-size: 9px;
+            """)
+            lbl_unit.setAlignment(Qt.AlignmentFlag.AlignRight)
+            col_layout.addWidget(lbl_unit)
+
+        return col
+
+    # ===== 业务方法（完全不变）=====
 
     def set_selected_rect(self, rect: CropRect | None,
                           image_size: tuple = (0, 0)) -> None:
-        """设置当前选中的裁剪框
-
-        Args:
-            rect: 选中的 CropRect，或 None（取消选中）
-            image_size: 源图尺寸 (width, height)，用于限制 SpinBox 范围
-        """
-        # 防御：如果传入 None 但当前已有数据，不覆盖（避免信号重复触发导致面板空白）
+        """设置当前选中的裁剪框"""
+        # 防御：如果传入 None 但当前已有数据，不覆盖
         if rect is None and self._current_rect is not None:
             return
 
@@ -273,7 +315,6 @@ class CropOptionsPanel(QWidget):
         h = self._spin_height.value()
         rotation = self._spin_rotation.value()
 
-        # 从像素坐标重建 CropRect
         new_rect = CropRect.from_pixel_rect(x1, y1, x1 + w, y1 + h, rotation)
         rect.x = new_rect.x
         rect.y = new_rect.y
@@ -302,10 +343,9 @@ class CropOptionsPanel(QWidget):
 
     def _on_aspect_changed(self, index: int) -> None:
         """宽高比下拉框变化"""
-        # 0=Free, 1=Original, 2=1:1, 3=3:2, 4=4:3, 5=16:9
         ratio_map = {
             0: 0.0,       # Free
-            1: -1.0,      # Original (特殊标记)
+            1: -1.0,      # Original
             2: 1.0,       # 1:1
             3: 3 / 2,     # 3:2
             4: 4 / 3,     # 4:3

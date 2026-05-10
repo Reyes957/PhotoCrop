@@ -75,7 +75,7 @@ class CropCanvas(QGraphicsView):
         self._min_drag_size = 30  # 最小拖动距离（像素），防止手抖误触
 
         # 画布外观
-        self.setBackgroundBrush(QBrush(QColor("#1d1d1f")))
+        self.setBackgroundBrush(QBrush(QColor("#E8E8E8")))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -513,8 +513,8 @@ class CropCanvas(QGraphicsView):
                 # 超过阈值，创建临时矩形
                 self._temp_rect = self._scene.addRect(
                     QRectF(self._draw_start, end).normalized(),
-                    QPen(QColor("#0071e3"), 1.5, Qt.PenStyle.DashLine),
-                    QBrush(QColor(0, 113, 227, 30)),
+                    QPen(QColor("#000000"), 1.5, Qt.PenStyle.DashLine),
+                    QBrush(QColor(0, 0, 0, 20)),
                 )
                 self._temp_rect.setZValue(1000)
             else:

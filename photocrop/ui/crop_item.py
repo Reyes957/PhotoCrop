@@ -37,16 +37,16 @@ from photocrop.utils.rotation import normalize_angle
 # Apple 设计常量
 # ============================================================
 
-# 主色调
-APPLE_BLUE = QColor("#0071e3")
-APPLE_BLUE_HOVER = QColor("#2997ff")
-APPLE_BLUE_LIGHT = QColor(0, 113, 227, 40)  # 半透明蓝
+# 主色调 — 黑白极简
+APPLE_BLUE = QColor("#000000")
+APPLE_BLUE_HOVER = QColor("#333333")
+APPLE_BLUE_LIGHT = QColor(0, 0, 0, 25)  # 选中填充
 
 # 中性色
-DARK_BG = QColor("#1d1d1f")
-LIGHT_BG = QColor("#f5f5f7")
+DARK_BG = QColor("#F5F5F5")
+LIGHT_BG = QColor("#F5F5F5")
 WHITE = QColor("#ffffff")
-SEPARATOR = QColor(0, 0, 0, 26)  # 10% 黑
+SEPARATOR = QColor(0, 0, 0, 26)
 
 # 手柄尺寸
 HANDLE_SIZE = 8
@@ -179,7 +179,7 @@ class CropItem(QGraphicsRectItem):
         if is_selected:
             pen = QPen(APPLE_BLUE, PEN_WIDTH_SELECTED)
         else:
-            pen = QPen(QColor(255, 255, 255, 120), PEN_WIDTH_INACTIVE, Qt.PenStyle.CustomDashLine)
+            pen = QPen(QColor(102, 102, 102), PEN_WIDTH_INACTIVE, Qt.PenStyle.CustomDashLine)
             pen.setDashPattern(PEN_DASH_PATTERN)
         painter.setPen(pen)
         painter.drawRect(rect)
@@ -287,7 +287,7 @@ class CropItem(QGraphicsRectItem):
             self.TOOLBAR_BUTTON_SIZE + 8,
         )
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 153)))  # #00000099
+        painter.setBrush(QBrush(QColor(0, 0, 0, 160)))  # 深色浮层，保持可见性
         painter.drawRoundedRect(bg_rect, 4, 4)
 
         # 按钮
@@ -298,7 +298,7 @@ class CropItem(QGraphicsRectItem):
         for _i, (btn_rect, label) in enumerate(zip(btn_rects, self.TOOLBAR_LABELS)):
             # 按钮背景
             if btn_rect.contains(self._toolbar_hover_pos):
-                painter.setBrush(QBrush(QColor(255, 255, 255, 40)))
+                painter.setBrush(QBrush(QColor(255, 255, 255, 30)))
             else:
                 painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(btn_rect, 3, 3)
