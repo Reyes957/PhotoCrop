@@ -8,9 +8,11 @@ v0.4.0: UI 体验 + 工程化基础设施 — 撤销/重做、配置系统、投
 v0.5.0: 多图像管理 + 属性面板 + 批量导出 + Single View + 模板系统 + PDF 全局预览
 v0.5.1: Bug 修复 — 撤销支持、属性面板、build-backend、导出模板、代码去重
 v0.5.2: 17 个 Bug 修复 + PDF 全局跨页预览 + 裁剪框旋转 90° + PDF 多页展开 + CI 修复
+v0.6.0: 1:1 复刻 HTML 参考 UI + Light/Dark 双主题 + 工具栏重构 + 空状态页
+v0.6.1: UI 主题重构 — 4 面板 Dark 模式完整支持 + 版本号动态化 + Undo/Redo 禁用逻辑 + Zoom 实时同步 + 9 bug fixes
 """
 
-__version__ = "0.5.2"
+__version__ = "0.6.0"
 
 from photocrop.utils.crop_rect import CropRect
 

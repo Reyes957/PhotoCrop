@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from photocrop import __version__
 from photocrop.engine.core import detect_rectangles
 from photocrop.export.cropper import export_photo
 from photocrop.ui.canvas import CropCanvas
@@ -412,12 +413,16 @@ class MainWindow(QMainWindow):
 
     # ---- 底栏 ----
 
+    @property
+    def _version(self) -> str:
+        return __version__
+
     def _build_bottom_bar(self, parent: QWidget) -> None:
         layout = QHBoxLayout(parent)
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(8)
 
-        self._lbl_bottom_status = QLabel("PhotoCrop v0.5.3 — Ready")
+        self._lbl_bottom_status = QLabel(f"PhotoCrop v{__version__} — Ready")
         self._lbl_bottom_status.setStyleSheet(
             f"font-family: {FONT_BODY}; font-size: 11px;"
         )
@@ -481,6 +486,7 @@ class MainWindow(QMainWindow):
         self._canvas.page_changed.connect(self._on_page_changed)
         self._canvas.selection_changed.connect(self._on_selection_changed)
         self._canvas.view_single_requested.connect(self._on_view_single_requested)
+        self._canvas.zoom_changed.connect(self._update_zoom_label)
 
         self._crop_options_panel.rect_changed.connect(self._on_crop_options_changed)
         self._crop_options_panel.editing_finished.connect(
@@ -906,6 +912,7 @@ class MainWindow(QMainWindow):
                 current_page = sess.current_pdf_page
                 current_rects = sess.page_crop_rects.get(current_page, [])
                 self._canvas._restore_rects(current_rects)
+                self._canvas._push_undo_state()
                 self._refresh_global_preview(sess, current_page)
 
         QTimer.singleShot(100, check_progress)
@@ -925,6 +932,8 @@ class MainWindow(QMainWindow):
         self._canvas.clear_crops()
         self._lbl_bottom_status.setText("已清除所有裁剪框")
         self._update_button_states()
+        self._btn_undo.setEnabled(self._canvas._undo_manager.can_undo())
+        self._btn_redo.setEnabled(self._canvas._undo_manager.can_redo())
         pdf_sess = self._get_current_pdf_session()
         if pdf_sess is not None and self._extracted_panel._global_mode:
             current_page = -1
@@ -1063,9 +1072,11 @@ class MainWindow(QMainWindow):
 
     def _on_undo(self) -> None:
         self._canvas.undo()
+        self._update_button_states()
 
     def _on_redo(self) -> None:
         self._canvas.redo()
+        self._update_button_states()
 
     def _on_selection_changed(self) -> None:
         selected = self._canvas.selected_items
@@ -1183,20 +1194,23 @@ class MainWindow(QMainWindow):
         crop_count = len(self._canvas.crop_rects)
         if is_pdf:
             self._lbl_bottom_status.setText(
-                f"PhotoCrop v0.5.3 — {img_count} images, PDF {pdf_sess.page_count} pages — Ready"
+                f"PhotoCrop v{__version__} — {img_count} images, PDF {pdf_sess.page_count} pages — Ready"
             )
         elif crop_count > 0:
             self._lbl_bottom_status.setText(
-                f"PhotoCrop v0.5.3 — {img_count} images, {crop_count} crops — Ready"
+                f"PhotoCrop v{__version__} — {img_count} images, {crop_count} crops — Ready"
             )
         else:
             self._lbl_bottom_status.setText(
-                f"PhotoCrop v0.5.3 — {img_count} images — Ready"
+                f"PhotoCrop v{__version__} — {img_count} images — Ready"
             )
 
     def _on_detection_done(self, count: int) -> None:
         self._update_button_states()
         self._update_image_list_panel()
+        # 更新撤销按钮（检测完后 undo stack 有变化）
+        self._btn_undo.setEnabled(self._canvas._undo_manager.can_undo())
+        self._btn_redo.setEnabled(self._canvas._undo_manager.can_redo())
 
     def _on_rects_changed(self) -> None:
         self._update_timer.start(50)
@@ -1204,11 +1218,11 @@ class MainWindow(QMainWindow):
         img_count = len(self._sessions)
         if count > 0:
             self._lbl_bottom_status.setText(
-                f"PhotoCrop v0.5.3 — {img_count} images, {count} crops — Ready"
+                f"PhotoCrop v{__version__} — {img_count} images, {count} crops — Ready"
             )
         else:
             self._lbl_bottom_status.setText(
-                f"PhotoCrop v0.5.3 — {img_count} images — Ready"
+                f"PhotoCrop v{__version__} — {img_count} images — Ready"
             )
         self._update_image_list_panel()
         pdf_sess = self._get_current_pdf_session()
@@ -1241,6 +1255,8 @@ class MainWindow(QMainWindow):
         self._btn_detect.setEnabled(has_image)
         self._btn_clear.setEnabled(has_rects)
         self._btn_export.setEnabled(has_rects)
+        self._btn_undo.setEnabled(self._canvas._undo_manager.can_undo())
+        self._btn_redo.setEnabled(self._canvas._undo_manager.can_redo())
 
     # ---- 视图切换 ----
     # 视图索引：0=Empty  1=Grid(Canvas)  2=Single

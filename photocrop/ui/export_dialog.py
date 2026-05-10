@@ -185,6 +185,7 @@ class ExportDialog(QDialog):
         lbl_fmt = QLabel("格式")
         self._combo_format = QComboBox()
         self._combo_format.addItems(["JPEG", "PNG", "TIFF"])
+        self._combo_format.setCurrentIndex(0)
         self._combo_format.currentIndexChanged.connect(self._on_format_changed)
         fmt_layout.addRow(lbl_fmt, self._combo_format)
 
@@ -207,6 +208,8 @@ class ExportDialog(QDialog):
 
         lbl_quality = QLabel("质量")
         fmt_layout.addRow(lbl_quality, self._quality_widget)
+        # JPEG 默认选中，质量 slider 初始可见
+        self._quality_widget.setVisible(True)
 
         layout.addWidget(fmt_group)
 
@@ -266,28 +269,14 @@ class ExportDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
-        # 当前页导出按钮
+        # 当前页导出按钮（次要描边样式）
         self._btn_export_page = QPushButton(f"导出当前页 ({self._current_page_crops})")
+        self._btn_export_page.setProperty("secondary", "true")
         self._btn_export_page.clicked.connect(lambda: self._on_export("page"))
         btn_layout.addWidget(self._btn_export_page)
 
-        # 全部导出按钮
+        # 全部导出按钮（主按钮黑底样式，继承全局 QPushButton）
         self._btn_export_all = QPushButton(f"导出全部 ({self._total_crops})")
-        self._btn_export_all.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #000000;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 8px 20px;
-                font-family: {FONT_FAMILY};
-                font-size: 13px;
-                min-height: 28px;
-            }}
-            QPushButton:hover {{
-                background-color: #333333;
-            }}
-        """)
         self._btn_export_all.clicked.connect(lambda: self._on_export("all"))
         btn_layout.addWidget(self._btn_export_all)
 

@@ -42,20 +42,33 @@ _ACCENT = QColor("#000000")
 _ACCENT_HOVER = QColor("#333333")
 _ACCENT_FILL = QColor(0, 0, 0, 10)   # 选中填充 (4% opacity)
 _CANVAS_BG = QColor("#E8E8E8")
-_WHITE = QColor("#ffffff")
+_SURFACE = QColor("#ffffff")
 _DASHED = QColor(102, 102, 102)       # 未选中虚线
+_TOOLBAR_BG = QColor(0, 0, 0, 160)    # 工具栏浮层背景
 
 
 def set_theme_colors(colors) -> None:
     """更新 CropItem 绘制使用的颜色（主题切换时调用）"""
-    global _ACCENT, _ACCENT_HOVER, _ACCENT_FILL, _CANVAS_BG, _WHITE, _DASHED
+    global _ACCENT, _ACCENT_HOVER, _ACCENT_FILL, _CANVAS_BG, _SURFACE, _DASHED, _TOOLBAR_BG
     _ACCENT = QColor(colors.accent)
     _ACCENT_HOVER = QColor(colors.accent_hover)
     _ACCENT_FILL = QColor(colors.accent)
     _ACCENT_FILL.setAlpha(10)
     _CANVAS_BG = QColor(colors.canvas_bg)
-    _WHITE = QColor(colors.surface)
+    _SURFACE = QColor(colors.surface)
     _DASHED = QColor(102, 102, 102) if colors.accent == "#000000" else QColor(85, 85, 85)
+    # 工具栏浮层：使用 theme 的 toolbar_float token
+    _TOOLBAR_BG = _parse_rgba(colors.toolbar_float)
+
+
+def _parse_rgba(rgba_str: str) -> QColor:
+    """解析 'rgba(r, g, b, a)' 字符串为 QColor"""
+    import re
+    m = re.match(r'rgba\((\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+)\)', rgba_str)
+    if m:
+        r, g, b, a = int(m[1]), int(m[2]), int(m[3]), float(m[4])
+        return QColor(r, g, b, int(a * 255))
+    return QColor(0, 0, 0, 160)
 
 # 手柄尺寸
 HANDLE_SIZE = 8
@@ -120,7 +133,7 @@ class CropItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemClipsToShape, True)
-        self.setCacheMode(QGraphicsItem.CacheMode.DeviceCoordinateCache)
+        self.setCacheMode(QGraphicsItem.CacheMode.ItemCoordinateCache)
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
         # 从 CropRect 同步位置
@@ -288,7 +301,7 @@ class CropItem(QGraphicsRectItem):
             self.TOOLBAR_BUTTON_SIZE + 8,
         )
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 160)))  # 深色浮层，保持可见性
+        painter.setBrush(QBrush(_TOOLBAR_BG))
         painter.drawRoundedRect(bg_rect, 4, 4)
 
         # 按钮
@@ -305,7 +318,7 @@ class CropItem(QGraphicsRectItem):
             painter.drawRoundedRect(btn_rect, 3, 3)
 
             # 图标文字
-            painter.setPen(QPen(_WHITE))
+            painter.setPen(QPen(_SURFACE))
             painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, label)
 
     @property

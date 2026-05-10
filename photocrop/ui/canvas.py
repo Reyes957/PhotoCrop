@@ -49,6 +49,7 @@ class CropCanvas(QGraphicsView):
     page_changed = Signal(int, int)  # current_page, total_pages
     selection_changed = Signal()      # 选中的裁剪框变化
     view_single_requested = Signal(int)  # 请求切换到 Single View，参数为裁剪框索引
+    zoom_changed = Signal()           # 缩放比例变化（滚轮/按钮）
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -574,6 +575,7 @@ class CropCanvas(QGraphicsView):
             self.scale(factor, factor)
         else:
             self.scale(1 / factor, 1 / factor)
+        self.zoom_changed.emit()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

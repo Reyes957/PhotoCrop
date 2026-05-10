@@ -150,20 +150,6 @@ QMainWindow {{
     background-color: {c.bg};
 }}
 
-/* === QToolBar === */
-QToolBar {{
-    background-color: {c.bg};
-    border: none;
-    border-bottom: 1px solid {c.border};
-    padding: 0 16px;
-    spacing: 12px;
-}}
-QToolBar::separator {{
-    width: 1px;
-    background: {c.border};
-    margin: 4px 8px;
-}}
-
 /* === QPushButton — 默认（primary 黑底） === */
 QPushButton {{
     background-color: {c.accent};
@@ -241,7 +227,7 @@ QPushButton[export_btn="true"] {{
     min-height: 28px;
 }}
 QPushButton[export_btn="true"]:hover {{
-    opacity: 0.85;
+    background-color: {c.accent_hover};
 }}
 
 /* === QLabel === */
@@ -264,6 +250,24 @@ QStatusBar {{
     font-size: 12px;
     color: {c.text_secondary};
     padding: 4px 16px;
+}}
+
+/* === QMenu === */
+QMenu {{
+    background-color: {c.surface};
+    color: {c.text};
+    border: 1px solid {c.border};
+    border-radius: 6px;
+    padding: 4px;
+    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-size: 12px;
+}}
+QMenu::item {{
+    padding: 6px 16px;
+    border-radius: 4px;
+}}
+QMenu::item:selected {{
+    background-color: {c.hover_bg};
 }}
 
 /* === QSpinBox / QDoubleSpinBox === */
@@ -303,7 +307,7 @@ QSpinBox::down-arrow {{
 QComboBox {{
     border: 1px solid {c.border};
     border-radius: 4px;
-    padding: 3px 6px;
+    padding: 3px 28px 3px 6px;
     font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
     background: {c.surface};
@@ -314,8 +318,18 @@ QComboBox:hover {{
     border-color: {c.border_strong};
 }}
 QComboBox::drop-down {{
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 22px;
     border: none;
-    width: 20px;
+    border-left: 1px solid {c.border};
+}}
+QComboBox::down-arrow {{
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid {c.text_secondary};
+    margin-right: 4px;
 }}
 QComboBox QAbstractItemView {{
     background-color: {c.surface};

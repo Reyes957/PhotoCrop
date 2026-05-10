@@ -9,6 +9,8 @@ ImageListPanel — 左侧图像列表面板
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from PIL import Image
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
@@ -24,14 +26,23 @@ from PySide6.QtWidgets import (
 from photocrop.ui.utils import pil_to_pixmap
 
 # ============================================================
-# 样式常量
+# 默认样式常量（初始化时使用，set_theme 后会被覆盖）
 # ============================================================
 
-PANEL_BG = "#F5F5F5"
-TEXT_PRIMARY = "#1A1A1A"
-TEXT_SECONDARY = "#666666"
-SELECTED_BORDER = "#000000"
 FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+
+
+@dataclass
+class _PanelColors:
+    """面板内部颜色（从 ThemeColors 提取，方便各方法使用）"""
+    bg: str = "#F5F5F5"
+    text: str = "#1A1A1A"
+    text_secondary: str = "#666666"
+    accent: str = "#000000"
+    border: str = "#E0E0E0"
+    selected_bg: str = "rgba(0, 0, 0, 0.08)"
+    hover_bg: str = "rgba(0, 0, 0, 0.03)"
+    thumb_bg: str = "#E0E0E0"
 
 
 class ImageListPanel(QWidget):
@@ -50,58 +61,30 @@ class ImageListPanel(QWidget):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setFixedWidth(220)
+        self._colors = _PanelColors()
 
-        # 独立样式表，不与全局 STYLE_SHEET 冲突
-        self.setStyleSheet(f"""
-            ImageListPanel {{
-                background-color: {PANEL_BG};
-            }}
-        """)
+        self._build_ui()
+        self._apply_styles()
+
+        # 存储 path key 到 row 的映射
+        self._path_keys: list[str] = []
+        self._block_signal = False
+
+    def _build_ui(self) -> None:
+        """构建 UI 结构（不设置颜色样式）"""
+        self.setStyleSheet(f"ImageListPanel {{ background-color: {self._colors.bg}; }}")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         # 标题
-        header = QLabel("  IMAGES")
-        header.setFixedHeight(32)
-        header.setStyleSheet(f"""
-            background-color: {PANEL_BG};
-            color: {TEXT_SECONDARY};
-            font-family: {FONT_FAMILY};
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            padding-left: 10px;
-            border-bottom: 1px solid #E0E0E0;
-        """)
-        layout.addWidget(header)
+        self._header = QLabel("  IMAGES")
+        self._header.setFixedHeight(32)
+        layout.addWidget(self._header)
 
         # 列表
         self._list = QListWidget()
-        self._list.setStyleSheet(f"""
-            QListWidget {{
-                background-color: {PANEL_BG};
-                border: none;
-                outline: none;
-                font-family: {FONT_FAMILY};
-                font-size: 12px;
-                color: {TEXT_PRIMARY};
-            }}
-            QListWidget::item {{
-                padding: 6px 8px;
-                border-left: 3px solid transparent;
-                min-height: 50px;
-            }}
-            QListWidget::item:selected {{
-                background-color: rgba(0, 0, 0, 0.08);
-                border-left: 3px solid {SELECTED_BORDER};
-                color: {TEXT_PRIMARY};
-            }}
-            QListWidget::item:hover:!selected {{
-                background-color: rgba(0, 0, 0, 0.03);
-            }}
-        """)
         self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._list.customContextMenuRequested.connect(self._on_context_menu)
         self._list.currentRowChanged.connect(self._on_row_changed)
@@ -110,19 +93,55 @@ class ImageListPanel(QWidget):
         # 底部统计
         self._lbl_total = QLabel("  0 images, 0 crops")
         self._lbl_total.setFixedHeight(28)
+        layout.addWidget(self._lbl_total)
+
+    def _apply_styles(self) -> None:
+        """根据当前 _colors 应用所有样式（初始化和主题切换时调用）"""
+        c = self._colors
+        self.setStyleSheet(f"ImageListPanel {{ background-color: {c.bg}; }}")
+        self._header.setStyleSheet(f"""
+            background-color: {c.bg};
+            color: {c.text_secondary};
+            font-family: {FONT_FAMILY};
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            padding-left: 10px;
+            border-bottom: 1px solid {c.border};
+        """)
+        self._list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {c.bg};
+                border: none;
+                outline: none;
+                font-family: {FONT_FAMILY};
+                font-size: 12px;
+                color: {c.text};
+            }}
+            QListWidget::item {{
+                padding: 6px 8px;
+                border-left: 3px solid transparent;
+                min-height: 50px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {c.selected_bg};
+                border-left: 3px solid {c.accent};
+                color: {c.text};
+            }}
+            QListWidget::item:hover:!selected {{
+                background-color: {c.hover_bg};
+            }}
+        """)
         self._lbl_total.setStyleSheet(f"""
-            background-color: {PANEL_BG};
-            color: {TEXT_SECONDARY};
+            background-color: {c.bg};
+            color: {c.text_secondary};
             font-family: {FONT_FAMILY};
             font-size: 11px;
             padding-left: 10px;
-            border-top: 1px solid #E0E0E0;
+            border-top: 1px solid {c.border};
         """)
-        layout.addWidget(self._lbl_total)
-
-        # 存储 path key 到 row 的映射
-        self._path_keys: list[str] = []
-        self._block_signal = False
+        # 更新所有已有列表项的子控件颜色
+        self._refresh_item_colors()
 
     # ---- 公共 API ----
 
@@ -207,59 +226,22 @@ class ImageListPanel(QWidget):
         self._list.clear()
 
     def set_theme(self, colors) -> None:
-        """更新面板颜色"""
-        self.setStyleSheet(f"""
-            ImageListPanel {{
-                background-color: {colors.bg};
-            }}
-        """)
-        # Header
-        for lbl in self.findChildren(QLabel):
-            if lbl.text().strip().startswith("IMAGES"):
-                lbl.setStyleSheet(f"""
-                    background-color: {colors.bg};
-                    color: {colors.text_secondary};
-                    font-family: {FONT_FAMILY};
-                    font-size: 11px;
-                    font-weight: 600;
-                    letter-spacing: 0.5px;
-                    padding-left: 10px;
-                    border-bottom: 1px solid {colors.border};
-                """)
-            elif "images," in lbl.text():
-                lbl.setStyleSheet(f"""
-                    background-color: {colors.bg};
-                    color: {colors.text_secondary};
-                    font-family: {FONT_FAMILY};
-                    font-size: 11px;
-                    padding-left: 10px;
-                    border-top: 1px solid {colors.border};
-                """)
-        # List widget
-        self._list.setStyleSheet(f"""
-            QListWidget {{
-                background-color: {colors.bg};
-                border: none;
-                outline: none;
-                font-family: {FONT_FAMILY};
-                font-size: 12px;
-                color: {colors.text};
-            }}
-            QListWidget::item {{
-                padding: 6px 8px;
-                border-left: 3px solid transparent;
-                min-height: 50px;
-            }}
-            QListWidget::item:selected {{
-                background-color: {colors.selected_bg};
-                border-left: 3px solid {colors.accent};
-                color: {colors.text};
-            }}
-            QListWidget::item:hover:!selected {{
-                background-color: {colors.hover_bg};
-            }}
-        """)
-        # 更新列表项中的子控件颜色
+        """更新面板颜色（主题切换时调用）"""
+        self._colors = _PanelColors(
+            bg=colors.bg,
+            text=colors.text,
+            text_secondary=colors.text_secondary,
+            accent=colors.accent,
+            border=colors.border,
+            selected_bg=colors.selected_bg,
+            hover_bg=colors.hover_bg,
+            thumb_bg=colors.border if colors.accent == "#000000" else "#3A3A3A",
+        )
+        self._apply_styles()
+
+    def _refresh_item_colors(self) -> None:
+        """更新所有列表项内部控件的颜色（主题切换 + 新项创建后调用）"""
+        c = self._colors
         for i in range(self._list.count()):
             item = self._list.item(i)
             if item is None:
@@ -270,32 +252,33 @@ class ImageListPanel(QWidget):
             for lbl in widget.findChildren(QLabel):
                 obj_name = lbl.objectName()
                 if obj_name == "count_label":
-                    lbl.setStyleSheet(f"color: {colors.text_secondary}; font-family: {FONT_FAMILY}; font-size: 10px;")
+                    lbl.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 10px;")
+                elif obj_name == "thumb_label":
+                    lbl.setStyleSheet(f"border-radius: 4px; background: {c.thumb_bg};")
                 else:
-                    lbl.setStyleSheet(f"color: {colors.text}; font-family: {FONT_FAMILY}; font-size: 12px;")
+                    lbl.setStyleSheet(f"color: {c.text}; font-family: {FONT_FAMILY}; font-size: 12px;")
 
     # ---- 单图项 ----
 
     def _add_single_item(self, key: str, filename: str,
                          thumbnail: Image.Image, crop_count: int) -> None:
         """添加单图项"""
+        c = self._colors
         self._path_keys.append(key)
 
-        # 创建自定义 widget
         item_widget = QWidget()
         item_widget.setFixedHeight(56)
         item_layout = QVBoxLayout(item_widget)
         item_layout.setContentsMargins(4, 4, 4, 4)
         item_layout.setSpacing(2)
 
-        # 上行: 缩略图 + 文件名
         top_row = QHBoxLayout()
         top_row.setSpacing(8)
 
-        # 缩略图
         thumb_label = QLabel()
         thumb_label.setFixedSize(44, 44)
-        thumb_label.setStyleSheet("border-radius: 4px; background: #E0E0E0;")
+        thumb_label.setObjectName("thumb_label")
+        thumb_label.setStyleSheet(f"border-radius: 4px; background: {c.thumb_bg};")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = pil_to_pixmap(thumbnail).scaled(
             44, 44, Qt.AspectRatioMode.KeepAspectRatio,
@@ -304,27 +287,15 @@ class ImageListPanel(QWidget):
         thumb_label.setPixmap(pixmap)
         top_row.addWidget(thumb_label)
 
-        # 文件名
         name_label = QLabel(filename)
-        name_label.setStyleSheet(f"""
-            color: {TEXT_PRIMARY};
-            font-family: {FONT_FAMILY};
-            font-size: 12px;
-            font-weight: 500;
-        """)
+        name_label.setStyleSheet(f"color: {c.text}; font-family: {FONT_FAMILY}; font-size: 12px; font-weight: 500;")
         name_label.setWordWrap(True)
         top_row.addWidget(name_label, 1)
 
         item_layout.addLayout(top_row)
 
-        # 下行: 裁剪框数量
         count_label = QLabel(f"{crop_count} crops")
-        count_label.setStyleSheet(f"""
-            color: {TEXT_SECONDARY};
-            font-family: {FONT_FAMILY};
-            font-size: 10px;
-            padding-left: 52px;
-        """)
+        count_label.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 10px; padding-left: 52px;")
         count_label.setObjectName("count_label")
         item_layout.addWidget(count_label)
 
@@ -366,16 +337,17 @@ class ImageListPanel(QWidget):
     def _create_pdf_parent_widget(self, filename: str, page_count: int,
                                   first_thumb: Image.Image) -> QWidget:
         """创建 PDF 父项 widget：文件名 + 页数"""
+        c = self._colors
         widget = QWidget()
         widget.setFixedHeight(36)
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(4, 4, 8, 4)
         layout.setSpacing(8)
 
-        # 缩略图
         thumb_label = QLabel()
         thumb_label.setFixedSize(28, 28)
-        thumb_label.setStyleSheet("border-radius: 3px; background: #E0E0E0;")
+        thumb_label.setObjectName("thumb_label")
+        thumb_label.setStyleSheet(f"border-radius: 3px; background: {c.thumb_bg};")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = pil_to_pixmap(first_thumb).scaled(
             28, 28, Qt.AspectRatioMode.KeepAspectRatio,
@@ -384,14 +356,8 @@ class ImageListPanel(QWidget):
         thumb_label.setPixmap(pixmap)
         layout.addWidget(thumb_label)
 
-        # 文件名 + 页数
         name_label = QLabel(f"{filename}  ({page_count} pages)")
-        name_label.setStyleSheet(f"""
-            color: {TEXT_PRIMARY};
-            font-family: {FONT_FAMILY};
-            font-size: 11px;
-            font-weight: 600;
-        """)
+        name_label.setStyleSheet(f"color: {c.text}; font-family: {FONT_FAMILY}; font-size: 11px; font-weight: 600;")
         name_label.setWordWrap(True)
         layout.addWidget(name_label, 1)
 
@@ -400,18 +366,19 @@ class ImageListPanel(QWidget):
     def _create_page_widget(self, page_idx: int, crop_count: int,
                             thumbnail: Image.Image | None = None) -> QWidget:
         """创建 PDF 页面子项 widget：缩略图 + Page N - X crops"""
+        c = self._colors
         widget = QWidget()
         widget.setFixedHeight(46)
         layout = QHBoxLayout(widget)
-        layout.setContentsMargins(16, 4, 8, 4)  # 左侧缩进表示层级
+        layout.setContentsMargins(16, 4, 8, 4)
         layout.setSpacing(8)
 
-        # 缩略图
         thumb_label = QLabel()
         thumb_label.setFixedSize(36, 36)
-        thumb_label.setStyleSheet("border-radius: 3px; background: #E0E0E0;")
+        thumb_label.setObjectName("thumb_label")
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if thumbnail is not None:
+            thumb_label.setStyleSheet(f"border-radius: 3px; background: {c.thumb_bg};")
             pixmap = pil_to_pixmap(thumbnail).scaled(
                 36, 36, Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
@@ -419,35 +386,19 @@ class ImageListPanel(QWidget):
             thumb_label.setPixmap(pixmap)
         else:
             thumb_label.setText(f"P{page_idx + 1}")
-            thumb_label.setStyleSheet(f"""
-                color: {TEXT_SECONDARY};
-                font-family: {FONT_FAMILY};
-                font-size: 10px;
-                border-radius: 3px;
-                background: #E0E0E0;
-            """)
+            thumb_label.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 10px; border-radius: 3px; background: {c.thumb_bg};")
         layout.addWidget(thumb_label)
 
-        # 文字
         text_col = QVBoxLayout()
         text_col.setContentsMargins(0, 0, 0, 0)
         text_col.setSpacing(1)
 
         page_label = QLabel(f"Page {page_idx + 1}")
-        page_label.setStyleSheet(f"""
-            color: {TEXT_PRIMARY};
-            font-family: {FONT_FAMILY};
-            font-size: 11px;
-            font-weight: 500;
-        """)
+        page_label.setStyleSheet(f"color: {c.text}; font-family: {FONT_FAMILY}; font-size: 11px; font-weight: 500;")
         text_col.addWidget(page_label)
 
         count_label = QLabel(f"{crop_count} crops")
-        count_label.setStyleSheet(f"""
-            color: {TEXT_SECONDARY};
-            font-family: {FONT_FAMILY};
-            font-size: 10px;
-        """)
+        count_label.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 10px;")
         count_label.setObjectName("count_label")
         text_col.addWidget(count_label)
 
@@ -505,12 +456,13 @@ class ImageListPanel(QWidget):
         else:
             session_key = key
 
+        c = self._colors
         menu = QMenu(self)
         menu.setStyleSheet(f"""
             QMenu {{
-                background-color: #FFFFFF;
-                color: {TEXT_PRIMARY};
-                border: 1px solid #E0E0E0;
+                background-color: {c.bg};
+                color: {c.text};
+                border: 1px solid {c.border};
                 border-radius: 6px;
                 padding: 4px;
                 font-family: {FONT_FAMILY};
@@ -521,7 +473,7 @@ class ImageListPanel(QWidget):
                 border-radius: 4px;
             }}
             QMenu::item:selected {{
-                background-color: #F0F0F0;
+                background-color: {c.hover_bg};
             }}
         """)
         action_detect = menu.addAction("重新检测")
