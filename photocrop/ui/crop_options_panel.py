@@ -78,75 +78,68 @@ class CropOptionsPanel(QWidget):
         form_layout.setSpacing(10)
 
         # --- Width ---
-        row_w = self._create_form_row("Width", "px")
+        row_w = self._create_form_row("Width")
         self._spin_width = QSpinBox()
         self._spin_width.setRange(10, 10000)
+        self._spin_width.setSuffix(" px")
         self._spin_width.valueChanged.connect(self._on_value_changed)
         self._spin_width.editingFinished.connect(self._on_editing_finished)
         row_w.layout().addWidget(self._spin_width)
         form_layout.addWidget(row_w)
 
         # --- Height ---
-        row_h = self._create_form_row("Height", "px")
+        row_h = self._create_form_row("Height")
         self._spin_height = QSpinBox()
         self._spin_height.setRange(10, 10000)
+        self._spin_height.setSuffix(" px")
         self._spin_height.valueChanged.connect(self._on_value_changed)
         self._spin_height.editingFinished.connect(self._on_editing_finished)
         row_h.layout().addWidget(self._spin_height)
         form_layout.addWidget(row_h)
 
         # --- X ---
-        row_x = self._create_form_row("X", "px")
+        row_x = self._create_form_row("X")
         self._spin_x = QSpinBox()
         self._spin_x.setRange(0, 10000)
+        self._spin_x.setSuffix(" px")
         self._spin_x.valueChanged.connect(self._on_value_changed)
         self._spin_x.editingFinished.connect(self._on_editing_finished)
         row_x.layout().addWidget(self._spin_x)
         form_layout.addWidget(row_x)
 
         # --- Y ---
-        row_y = self._create_form_row("Y", "px")
+        row_y = self._create_form_row("Y")
         self._spin_y = QSpinBox()
         self._spin_y.setRange(0, 10000)
+        self._spin_y.setSuffix(" px")
         self._spin_y.valueChanged.connect(self._on_value_changed)
         self._spin_y.editingFinished.connect(self._on_editing_finished)
         row_y.layout().addWidget(self._spin_y)
         form_layout.addWidget(row_y)
 
         # --- Rotation (带 Reset) ---
-        row_rot = QWidget()
-        rot_layout = QHBoxLayout(row_rot)
-        rot_layout.setContentsMargins(0, 0, 0, 0)
-        rot_layout.setSpacing(8)
-        lbl_rot = self._create_label_col("Rotation", "")
-        rot_layout.addWidget(lbl_rot)
-
+        row_rot = self._create_form_row("Rotation")
         self._spin_rotation = QDoubleSpinBox()
         self._spin_rotation.setRange(-180.0, 180.0)
         self._spin_rotation.setSingleStep(0.5)
         self._spin_rotation.setDecimals(1)
+        self._spin_rotation.setSuffix("°")
         self._spin_rotation.valueChanged.connect(self._on_value_changed)
         self._spin_rotation.editingFinished.connect(self._on_editing_finished)
-        rot_layout.addWidget(self._spin_rotation, 1)
+        row_rot.layout().addWidget(self._spin_rotation, 1)
 
         self._btn_reset_rotation = QPushButton("Reset")
         self._btn_reset_rotation.setFixedSize(44, 24)
         self._btn_reset_rotation.clicked.connect(self._on_reset_rotation)
-        rot_layout.addWidget(self._btn_reset_rotation)
+        row_rot.layout().addWidget(self._btn_reset_rotation)
         form_layout.addWidget(row_rot)
 
         # --- Aspect Ratio ---
-        row_ar = QWidget()
-        ar_layout = QHBoxLayout(row_ar)
-        ar_layout.setContentsMargins(0, 0, 0, 0)
-        ar_layout.setSpacing(8)
-        lbl_ar = self._create_label_col("Aspect", "")
-        ar_layout.addWidget(lbl_ar)
-
+        row_ar = self._create_form_row("Aspect")
         self._combo_aspect = QComboBox()
         self._combo_aspect.addItems(["Free", "Original", "1:1", "3:2", "4:3", "16:9"])
         self._combo_aspect.currentIndexChanged.connect(self._on_aspect_changed)
-        ar_layout.addWidget(self._combo_aspect, 1)
+        row_ar.layout().addWidget(self._combo_aspect, 1)
         form_layout.addWidget(row_ar)
 
         layout.addWidget(self._form_widget)
@@ -195,52 +188,40 @@ class CropOptionsPanel(QWidget):
             f"QPushButton {{"
             f"background-color: transparent; color: {c.text_secondary}; "
             f"border: 1px solid {c.border}; border-radius: 4px; "
-            f"font-family: {FONT_FAMILY}; font-size: 10px; padding: 0;"
+            f"font-family: {FONT_FAMILY}; font-size: 11px; padding: 0;"
             f"}}"
             f"QPushButton:hover {{ background-color: {c.bg}; border-color: {c.border_strong}; }}"
         )
-        # 更新所有标签列的颜色（遍历 _create_label_col 创建的 QLabel）
+        # 更新所有表单行标签的颜色
         for lbl in self.findChildren(QLabel):
+            if lbl in (self._header, self._placeholder):
+                continue
             ss = lbl.styleSheet() or ""
-            if "color:" not in ss:
-                lbl.setStyleSheet(
-                    f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
-                    f"font-size: 11px;" if lbl.fontInfo().pixelSize() > 10
-                    else f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 9px;"
-                )
+            if "color:" in ss:
+                continue  # already explicitly styled
+            lbl.setStyleSheet(
+                f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 12px;"
+            )
 
     # ===== 辅助：创建表单行 =====
 
-    def _create_form_row(self, label: str, unit: str) -> QWidget:
+    def _create_form_row(self, label: str) -> QWidget:
+        c = self._colors
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(8)
-        lbl_widget = self._create_label_col(label, unit)
-        row_layout.addWidget(lbl_widget)
+        lbl = QLabel(label)
+        lbl.setFixedWidth(56)
+        lbl.setStyleSheet(
+            f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 12px;"
+        )
+        row_layout.addWidget(lbl)
         return row
 
     def _create_label_col(self, label: str, unit: str) -> QWidget:
-        c = self._colors
-        col = QWidget()
-        col.setFixedWidth(56)
-        col_layout = QVBoxLayout(col)
-        col_layout.setContentsMargins(0, 0, 0, 0)
-        col_layout.setSpacing(0)
-        col_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-
-        lbl_main = QLabel(label)
-        lbl_main.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 11px;")
-        lbl_main.setAlignment(Qt.AlignmentFlag.AlignRight)
-        col_layout.addWidget(lbl_main)
-
-        if unit:
-            lbl_unit = QLabel(unit)
-            lbl_unit.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 9px;")
-            lbl_unit.setAlignment(Qt.AlignmentFlag.AlignRight)
-            col_layout.addWidget(lbl_unit)
-
-        return col
+        """Deprecated: kept for backward compatibility. Use _create_form_row instead."""
+        return self._create_form_row(label)
 
     # ===== 业务方法 =====
 

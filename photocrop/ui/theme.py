@@ -81,13 +81,13 @@ DARK = ThemeColors(
     surface="#1E1E1E",
     text="#F0F0F0",
     text_secondary="#808080",
-    text_disabled="#505050",
+    text_disabled="#606060",
     border="#2A2A2A",
     border_strong="#404040",
     accent="#FFFFFF",
     accent_hover="#E0E0E0",
     danger="#FF5555",
-    selected_bg="rgba(255, 255, 255, 0.12)",
+    selected_bg="#2A2A2A",
     hover_bg="rgba(255, 255, 255, 0.05)",
     toolbar_float="rgba(0, 0, 0, 0.75)",
     page_bg="#2A2825",
@@ -318,8 +318,8 @@ QComboBox::drop-down {{
 QComboBox QAbstractItemView {{
     background-color: {c.surface};
     color: {c.text};
-    selection-background-color: {c.accent};
-    selection-color: {c.surface};
+    selection-background-color: {c.accent_hover};
+    selection-color: {c.bg};
     border: 1px solid {c.border};
     border-radius: 4px;
 }}

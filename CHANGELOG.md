@@ -1,5 +1,98 @@
 # Changelog
 
+## v0.6.3 — 第二轮设计审查 + Signal/State 一致性修复（2026-05-12）
+
+### UI 美学/实用性改进（18 项）
+
+**第一轮（8 项）：**
+- **工具栏分组** — Import → Detect → Clear 操作区和 Undo/Redo 编辑区之间加分隔线
+- **空状态引导** — 新增提示文字"拖入图片或点击 + Import 开始"
+- **底栏降噪** — 版本号移入窗口标题，状态栏只显示 `N images · M crops`
+- **Dark 模式虚线对比度** — 裁剪框未选中虚线 `#555` → `#6E6E`
+- **属性面板标签重排** — 标签左对齐 12px，单位移入 SpinBox suffix
+- **列表选中态** — Dark 模式从 `rgba(255,255,255,0.12)` 改为不透明 `#2A2A2A`
+- **禁用文字对比度** — Dark 模式 `text_disabled` `#505050` → `#606060`
+- **Zoom 按钮对齐** — Fit/1:1 按钮固定宽度 36px
+
+**第二轮（9 项）：**
+- **提取面板卡片 hover** — Dark 模式从透明色改 `selected_bg`
+- **Single View 返回按钮 hover** — 从 `#80808020` 改 `hover_bg`
+- **右侧面板分隔线** — Crop Options 和 Extracted Images 之间加分隔线
+- **Single View 预览背景** — 统一为画布背景色
+- **空状态图标** — 透明度 15% → 25%
+- **Reset 按钮字号** — 10px → 11px
+- **ComboBox 下拉选中** — 深色模式从纯白改 `accent_hover`
+- **Header 缩进** — 字面空格 → CSS `padding-left`
+- **PDF 子项缩进** — 2px 左边框指示线
+
+### Bug 修复
+
+- **Single 按钮点击后空白** — 底部 Single 按钮只切换视图不填充数据。修复：`_on_single_clicked()` 自动获取选中裁剪框并填充 SingleView
+- **_on_rects_changed 不刷新按钮** — 裁剪框操作后 Undo/Redo/Clear 按钮状态不更新。修复：添加 `_update_button_states()` 调用
+- **_on_crop_options_finished 不刷新按钮** — push undo state 后按钮未更新
+- **pyproject.toml 版本号不一致** — 0.5.2 → 0.6.3
+- **ExportDialog 硬编码亮色主题** — 重构为 `_apply_theme_stylesheet()`，从 ThemeManager 动态取色
+
+### 测试
+
+- **106 个新测试** — `tests/test_comprehensive_features.py`：CropRect 边缘情况、UndoManager 完整生命周期、手柄位置检测、工具栏按钮、模板填充、AppState/SessionController/Engine/Export/Theme 全覆盖
+- **全部 184 个测试通过**（78 原有 + 106 新增）
+
+---
+
+## v0.6.2 — SVG 图标系统（2026-05-11）
+
+### SVG 图标系统
+
+- **11 个 SVG 图标** — sun/moon/chevron-left/right/down/up/eye/x/rotate-ccw/rotate-cw/copy
+- **`get_icon(name, color)` 加载器** — QSvgRenderer 渲染，运行时注入颜色，内置缓存
+- **修复主题切换按钮空白** — 从 Unicode emoji 迁移到 SVG
+- **修复 QComboBox/QSpinBox 黑方块箭头** — 删除不生效的 CSS border 三角技巧
+- **修复裁剪框工具栏 tofu** — SF Pro Icons 从 font-family 链中移除（9 处）
+
+### 工具栏交互修复
+
+- **5 按钮工具栏** — 新增 `rotate-cw.svg`，mousePressEvent 映射 5 个按钮索引
+- **CropItem boundingRect 扩展** — 向上扩展 36px 包含工具栏区域，修复按钮不可交互
+- **工具栏选中即显示** — 不再仅 hover 显示
+
+---
+
+## v0.6.1 — UI 主题修复（2026-05-10）
+
+### 主题系统重构
+
+- **4 个面板 Dark 主题适配** — image_list / crop_options / extracted_images / single_view
+- **_PanelColors dataclass** — 各面板独立颜色数据类，`_build_ui()` / `_apply_styles()` 分离
+- **CropItem 主题支持** — `set_theme_colors()` + `_TOOLBAR_BG` / `_SURFACE` 全局变量
+- **Undo/Redo 按钮动态启用** — 根据 `can_undo()` / `can_redo()` 实时更新
+- **Canvas zoom_changed 信号** — 底栏 Zoom 百分比响应滚轮
+- **批量检测后撤销** — `_restore_rects` 后 `_push_undo_state()`
+- **DeviceCoordinateCache → ItemCoordinateCache** — 消除变换伪影
+- **提取面板缓存键** — `id()` → 确定性 `image.size`
+- **theme.py 清理** — 删除 QToolBar 死代码、修复无效 opacity、新增 QMenu/QComboBox 样式
+
+---
+
+## v0.6.0 — 1:1 复刻 HTML 参考 UI（2026-05-09）
+
+### 架构变更
+
+- **三页 QStackedWidget** — Empty State / Canvas / SingleView
+- **ThemeManager 单例** — Light/Dark 双模式 18 个颜色 token + `generate_stylesheet()`
+- **BrandIcon 绘制组件** — QPainter 双层方框
+- **全局主题系统** — `theme.toggle()` → `_apply_theme()` 统一刷新
+- **工具栏 44px 重排** — BrandIcon + BrandText + 所有按钮统一 28px 高 + AlignVCenter
+- **检测器下拉 QComboBox** — 110px 宽
+- **裁剪框工具栏 5 按钮** — 深色浮层 + SVG/Unicode 图标
+- **手柄 8×8 方块** — 9 个手柄 + 旋转手柄虚线连接线
+
+### 19 个 Bug 修复（BUG-047 至 BUG-065）
+
+- 导出 is_current 逻辑、CropRect 浅拷贝、_current_key 时序、跨页预览导航、键盘快捷键、复制框类型、导出文件名覆盖、PDF page_loader 性能、模板自定义格式等
+
+---
+
 ## v0.5.3 — 黑白极简 UI 迁移 + 表单布局重构（2026-05-10）
 
 ### UI 设计系统迁移

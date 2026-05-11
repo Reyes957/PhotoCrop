@@ -103,7 +103,7 @@ class ExtractedImagesPanel(QWidget):
         layout.setContentsMargins(10, 0, 10, 10)
         layout.setSpacing(6)
 
-        self._header = QPushButton("  EXTRACTED IMAGES  ▾")
+        self._header = QPushButton("EXTRACTED IMAGES  ▾")
         self._header.clicked.connect(self._toggle_collapse)
         layout.addWidget(self._header)
 
@@ -379,15 +379,15 @@ class ExtractedImagesPanel(QWidget):
         self._collapsed = not self._collapsed
         self._scroll.setVisible(not self._collapsed)
         self._header.setText(
-            "  EXTRACTED IMAGES  ▸" if self._collapsed
-            else "  EXTRACTED IMAGES  ▾"
+            "EXTRACTED IMAGES  ▸" if self._collapsed
+            else "EXTRACTED IMAGES  ▾"
         )
 
     def set_theme(self, colors) -> None:
         """更新面板颜色（主题切换时调用）"""
         self._colors = _PanelColors(
             bg=colors.bg, surface=colors.surface,
-            card_bg=colors.surface, card_hover=colors.hover_bg,
+            card_bg=colors.surface, card_hover=(colors.surface if colors.accent == "#000000" else colors.selected_bg),
             hover_bg=colors.hover_bg,
             text=colors.text, text_secondary=colors.text_secondary,
             border=colors.border, accent=colors.accent,

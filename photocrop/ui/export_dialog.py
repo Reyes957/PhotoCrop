@@ -31,11 +31,6 @@ from PySide6.QtWidgets import (
 # 样式常量
 # ============================================================
 
-PANEL_BG = "#F5F5F5"
-TEXT_PRIMARY = "#1A1A1A"
-TEXT_SECONDARY = "#666666"
-APPLE_BLUE = "#000000"
-DARK_BG = "#F5F5F5"
 FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
@@ -52,21 +47,33 @@ class ExportDialog(QDialog):
         self.setMinimumWidth(420)
         # BUG-044 fix: 初始化 _export_scope，默认为 "page"
         self._export_scope = "page"
+        self._apply_theme_stylesheet()
+
+        self._current_page_crops = current_page_crops
+        self._total_crops = total_crops
+        self._settings = QSettings("PhotoCrop", "PhotoCrop")
+
+        self._setup_ui()
+
+    def _apply_theme_stylesheet(self) -> None:
+        """Apply theme-aware stylesheet using current ThemeManager colors."""
+        from photocrop.ui.theme import theme
+        c = theme.colors
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: {PANEL_BG};
-                color: {TEXT_PRIMARY};
+                background-color: {c.bg};
+                color: {c.text};
                 font-family: {FONT_FAMILY};
                 font-size: 13px;
             }}
             QLabel {{
-                color: {TEXT_PRIMARY};
+                color: {c.text};
                 font-family: {FONT_FAMILY};
                 font-size: 12px;
             }}
             QGroupBox {{
-                color: {TEXT_PRIMARY};
-                border: 1px solid #E0E0E0;
+                color: {c.text};
+                border: 1px solid {c.border};
                 border-radius: 6px;
                 margin-top: 8px;
                 padding-top: 16px;
@@ -77,12 +84,12 @@ class ExportDialog(QDialog):
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 4px;
-                color: {TEXT_SECONDARY};
+                color: {c.text_secondary};
             }}
             QComboBox, QSpinBox, QLineEdit {{
-                background-color: #FFFFFF;
-                color: {TEXT_PRIMARY};
-                border: 1px solid #E0E0E0;
+                background-color: {c.surface};
+                color: {c.text};
+                border: 1px solid {c.border};
                 border-radius: 4px;
                 padding: 4px 8px;
                 font-family: {FONT_FAMILY};
@@ -90,10 +97,10 @@ class ExportDialog(QDialog):
                 min-height: 22px;
             }}
             QComboBox:focus, QSpinBox:focus, QLineEdit:focus {{
-                border-color: #999999;
+                border-color: {c.border_strong};
             }}
             QCheckBox {{
-                color: {TEXT_PRIMARY};
+                color: {c.text};
                 font-family: {FONT_FAMILY};
                 font-size: 12px;
                 spacing: 6px;
@@ -102,28 +109,28 @@ class ExportDialog(QDialog):
                 width: 16px;
                 height: 16px;
                 border-radius: 3px;
-                border: 1px solid #999999;
-                background: #FFFFFF;
+                border: 1px solid {c.border_strong};
+                background: {c.surface};
             }}
             QCheckBox::indicator:checked {{
-                background: {APPLE_BLUE};
-                border-color: {APPLE_BLUE};
+                background: {c.accent};
+                border-color: {c.accent};
             }}
             QSlider::groove:horizontal {{
                 height: 4px;
-                background: #CCCCCC;
+                background: {c.border};
                 border-radius: 2px;
             }}
             QSlider::handle:horizontal {{
                 width: 14px;
                 height: 14px;
                 margin: -5px 0;
-                background: {APPLE_BLUE};
+                background: {c.accent};
                 border-radius: 7px;
             }}
             QPushButton {{
-                background-color: {APPLE_BLUE};
-                color: white;
+                background-color: {c.accent};
+                color: {c.surface};
                 border: none;
                 border-radius: 6px;
                 padding: 8px 20px;
@@ -132,20 +139,14 @@ class ExportDialog(QDialog):
                 min-height: 28px;
             }}
             QPushButton:hover {{
-                background-color: #333333;
+                background-color: {c.accent_hover};
             }}
             QPushButton[secondary="true"] {{
                 background-color: transparent;
-                color: {APPLE_BLUE};
-                border: 1px solid {APPLE_BLUE};
+                color: {c.accent};
+                border: 1px solid {c.accent};
             }}
         """)
-
-        self._current_page_crops = current_page_crops
-        self._total_crops = total_crops
-        self._settings = QSettings("PhotoCrop", "PhotoCrop")
-
-        self._setup_ui()
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)

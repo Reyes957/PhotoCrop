@@ -79,7 +79,8 @@ class ImageListPanel(QWidget):
         layout.setSpacing(0)
 
         # 标题
-        self._header = QLabel("  IMAGES")
+        self._header = QLabel("IMAGES")
+        self._header.setStyleSheet("padding-left: 10px;")
         self._header.setFixedHeight(32)
         layout.addWidget(self._header)
 
@@ -91,7 +92,7 @@ class ImageListPanel(QWidget):
         layout.addWidget(self._list, 1)
 
         # 底部统计
-        self._lbl_total = QLabel("  0 images, 0 crops")
+        self._lbl_total = QLabel("0 images, 0 crops")
         self._lbl_total.setFixedHeight(28)
         layout.addWidget(self._lbl_total)
 
@@ -181,7 +182,7 @@ class ImageListPanel(QWidget):
 
     def update_total(self, image_count: int, crop_count: int) -> None:
         """更新底部统计"""
-        self._lbl_total.setText(f"  {image_count} images, {crop_count} crops")
+        self._lbl_total.setText(f"{image_count} images, {crop_count} crops")
 
     def remove_image(self, key: str) -> None:
         """从列表移除一张图片（单图或 PDF 父项+子项）"""
@@ -257,6 +258,9 @@ class ImageListPanel(QWidget):
                     lbl.setStyleSheet(f"border-radius: 4px; background: {c.thumb_bg};")
                 else:
                     lbl.setStyleSheet(f"color: {c.text}; font-family: {FONT_FAMILY}; font-size: 12px;")
+            # 刷新 PDF 页面子项的左边框指示线颜色
+            if widget.objectName() == "pdf_page_widget":
+                widget.setStyleSheet(f"#pdf_page_widget {{ border-left: 2px solid {c.border}; }}")
 
     # ---- 单图项 ----
 
@@ -368,7 +372,9 @@ class ImageListPanel(QWidget):
         """创建 PDF 页面子项 widget：缩略图 + Page N - X crops"""
         c = self._colors
         widget = QWidget()
+        widget.setObjectName("pdf_page_widget")
         widget.setFixedHeight(46)
+        widget.setStyleSheet(f"#pdf_page_widget {{ border-left: 2px solid {c.border}; }}")
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(16, 4, 8, 4)
         layout.setSpacing(8)

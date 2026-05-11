@@ -109,7 +109,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("PhotoCrop")
+        self.setWindowTitle(f"PhotoCrop {__version__}")
         self.setMinimumSize(1200, 800)
         self.resize(1440, 900)
 
@@ -183,6 +183,13 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)
         self._crop_options_panel = CropOptionsPanel()
         right_layout.addWidget(self._crop_options_panel)
+
+        # 分隔线
+        right_sep = QWidget()
+        right_sep.setFixedHeight(1)
+        right_sep.setObjectName("rightPanelSep")
+        right_layout.addWidget(right_sep)
+
         self._extracted_panel = ExtractedImagesPanel()
         right_layout.addWidget(self._extracted_panel, 1)
         body_layout.addWidget(right_panel)
@@ -250,6 +257,12 @@ class MainWindow(QMainWindow):
         self._btn_clear.setProperty("toolbar", "true")
         self._btn_clear.setEnabled(False)
         layout.addWidget(self._btn_clear)
+
+        # 操作区 / 编辑区分隔
+        sep2 = QWidget()
+        sep2.setFixedSize(1, 18)
+        sep2.setObjectName("toolbarSep")
+        layout.addWidget(sep2)
 
         self._btn_undo = QPushButton("Undo")
         self._btn_undo.setProperty("toolbar", "true")
@@ -321,7 +334,7 @@ class MainWindow(QMainWindow):
         v.setAlignment(Qt.AlignmentFlag.AlignCenter)
         v.setSpacing(20)
 
-        icon = BrandIcon(size=48, opacity=0.15)
+        icon = BrandIcon(size=48, opacity=0.25)
         v.addWidget(icon, 0, Qt.AlignmentFlag.AlignCenter)
 
         brand = QLabel(
@@ -337,6 +350,10 @@ class MainWindow(QMainWindow):
             f"font-family: {FONT_BODY}; font-size: 11px; letter-spacing: 0.25em;"
         )
         v.addWidget(self._empty_subtitle)
+
+        self._empty_hint = QLabel("拖入图片或点击 + Import 开始")
+        self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v.addWidget(self._empty_hint)
         return page
 
     def _build_bottom_bar(self, parent: QWidget) -> None:
@@ -344,7 +361,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(8)
 
-        self._lbl_bottom_status = QLabel(f"PhotoCrop v{__version__} — Ready")
+        self._lbl_bottom_status = QLabel("Ready")
         layout.addWidget(self._lbl_bottom_status)
         layout.addStretch()
 
@@ -367,13 +384,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._lbl_pipe)
 
         btn_fit = QPushButton("Fit")
-        btn_fit.setFixedHeight(20)
+        btn_fit.setFixedSize(36, 20)
         btn_fit.setProperty("toolbar", "true")
         btn_fit.clicked.connect(self._on_zoom_fit)
         layout.addWidget(btn_fit)
 
         btn_1to1 = QPushButton("1:1")
-        btn_1to1.setFixedHeight(20)
+        btn_1to1.setFixedSize(36, 20)
         btn_1to1.setProperty("toolbar", "true")
         btn_1to1.clicked.connect(self._on_zoom_1to1)
         layout.addWidget(btn_1to1)
@@ -393,7 +410,7 @@ class MainWindow(QMainWindow):
         self._btn_prev_page.clicked.connect(self._on_prev_page)
         self._btn_next_page.clicked.connect(self._on_next_page)
         self._btn_grid.clicked.connect(lambda: self._view_coord.show_grid())
-        self._btn_single.clicked.connect(lambda: self._view_coord.show_single())
+        self._btn_single.clicked.connect(self._on_single_clicked)
         self._btn_theme.clicked.connect(self._theme_ctrl.toggle)
 
         # Canvas 信号
@@ -471,6 +488,9 @@ class MainWindow(QMainWindow):
             f"font-family: {FONT_BODY}; font-size: 11px; "
             f"letter-spacing: 0.25em; color: {c.text_secondary};"
         )
+        self._empty_hint.setStyleSheet(
+            f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_disabled};"
+        )
         self._lbl_bottom_status.setStyleSheet(
             f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
         )
@@ -481,6 +501,11 @@ class MainWindow(QMainWindow):
 
         for w in self._toolbar.findChildren(QWidget):
             if w.objectName() == "toolbarSep":
+                w.setStyleSheet(f"background: {c.border};")
+
+        # 右侧面板分隔线
+        for w in self.findChildren(QWidget):
+            if w.objectName() == "rightPanelSep":
                 w.setStyleSheet(f"background: {c.border};")
 
         icon_color = c.accent if theme.mode == "light" else c.text
@@ -772,6 +797,7 @@ class MainWindow(QMainWindow):
 
     def _on_crop_options_finished(self) -> None:
         self._canvas._push_undo_state()
+        self._update_button_states()
 
     def _on_aspect_ratio_changed(self, ratio: float) -> None:
         for item in self._canvas.selected_items:
@@ -854,6 +880,18 @@ class MainWindow(QMainWindow):
                 self._canvas._push_undo_state()
                 self._canvas.rects_changed.emit()
 
+    def _on_single_clicked(self) -> None:
+        """用户点击底部 Single 按钮 — 切换到单张预览视图"""
+        items = self._canvas.crop_items
+        if not items or self._canvas.source_image is None:
+            # 没有裁剪框或没有图片：只切换视图（会显示空白状态）
+            self._view_coord.show_single()
+            return
+        # 找到当前选中的裁剪框索引，没有则默认第一个
+        selected = self._canvas.selected_items
+        index = items.index(selected[-1]) if selected else 0
+        self._on_view_single_requested(index)
+
     def _on_view_single_requested(self, index: int) -> None:
         self._view_coord.show_single()
         self._single_view.set_data(
@@ -887,17 +925,15 @@ class MainWindow(QMainWindow):
         crop_count = len(self._canvas.crop_rects)
         if is_pdf:
             self._app_state.status_message.emit(
-                f"PhotoCrop v{__version__} — {img_count} images, "
-                f"PDF {sess.page_count} pages — Ready"
+                f"{img_count} images · PDF {sess.page_count} pages"
             )
         elif crop_count > 0:
             self._app_state.status_message.emit(
-                f"PhotoCrop v{__version__} — {img_count} images, "
-                f"{crop_count} crops — Ready"
+                f"{img_count} images · {crop_count} crops"
             )
         else:
             self._app_state.status_message.emit(
-                f"PhotoCrop v{__version__} — {img_count} images — Ready"
+                f"{img_count} images"
             )
 
     def _on_detection_done(self, _count: int) -> None:
@@ -907,9 +943,9 @@ class MainWindow(QMainWindow):
     def _on_rects_changed(self) -> None:
         count = len(self._canvas.crop_rects)
         self._app_state.status_message.emit(
-            f"PhotoCrop v{__version__} — {self._app_state.session_count} images, "
-            f"{count} crops — Ready"
+            f"{self._app_state.session_count} images · {count} crops"
         )
+        self._update_button_states()
         self._update_image_list_panel()
 
         pdf_sess = self._session_ctrl.get_current_pdf_session()

@@ -150,10 +150,10 @@ class SingleViewPanel(QWidget):
             f"border: 1px solid {c.accent}; border-radius: 6px; "
             f"padding: 6px 12px; font-family: {FONT_FAMILY}; font-size: 12px;"
             f"}}"
-            f"QPushButton:hover {{ background-color: {c.text_secondary}20; }}"
+            f"QPushButton:hover {{ background-color: {c.hover_bg}; }}"
         )
         self._preview_label.setStyleSheet(
-            f"background-color: {c.panel_bg}; border-radius: 8px; "
+            f"background-color: {c.bg}; border-radius: 8px; "
             f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 14px;"
         )
         nav_bar_style = f"background-color: {c.panel_bg}; border-radius: 6px;"

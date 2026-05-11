@@ -56,7 +56,7 @@ def set_theme_colors(colors) -> None:
     _ACCENT_FILL = QColor(colors.accent)
     _ACCENT_FILL.setAlpha(10)
     _CANVAS_BG = QColor(colors.canvas_bg)
-    _DASHED = QColor(102, 102, 102) if colors.accent == "#000000" else QColor(85, 85, 85)
+    _DASHED = QColor(102, 102, 102) if colors.accent == "#000000" else QColor(110, 110, 110)
     # 工具栏浮层：使用 theme 的 toolbar_float token
     _TOOLBAR_BG = _parse_rgba(colors.toolbar_float)
 
