@@ -36,7 +36,7 @@ TEXT_PRIMARY = "#1A1A1A"
 TEXT_SECONDARY = "#666666"
 APPLE_BLUE = "#000000"
 DARK_BG = "#F5F5F5"
-FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 class ExportDialog(QDialog):

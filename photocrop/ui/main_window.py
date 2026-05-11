@@ -20,6 +20,7 @@ from PIL import Image
 from PySide6.QtCore import (
     QObject,
     QRunnable,
+    QSize,
     Qt,
     QThreadPool,
     QTimer,
@@ -50,6 +51,7 @@ from photocrop.ui.canvas import CropCanvas
 from photocrop.ui.crop_options_panel import CropOptionsPanel
 from photocrop.ui.export_dialog import ExportDialog
 from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
+from photocrop.ui.icons import get_icon
 from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.session import ImageSession
 from photocrop.ui.single_view_panel import SingleViewPanel
@@ -61,10 +63,10 @@ from photocrop.utils.crop_rect import CropRect
 # ============================================================
 
 FONT_DISPLAY = (
-    "SF Pro Display, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+    "SF Pro Display, Helvetica Neue, Helvetica, Arial, sans-serif"
 )
 FONT_BODY = (
-    "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+    "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 )
 
 DETECTOR_OPTIONS = [
@@ -262,9 +264,10 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(parent)
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(12)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # Brand
-        self._brand_icon = BrandIcon()
+        self._brand_icon = BrandIcon(size=20)
         layout.addWidget(self._brand_icon)
 
         self._brand_text = QLabel()
@@ -331,9 +334,11 @@ class MainWindow(QMainWindow):
         pn_layout.setContentsMargins(0, 0, 0, 0)
         pn_layout.setSpacing(8)
 
-        self._btn_prev_page = QPushButton("◀")
+        self._btn_prev_page = QPushButton()
         self._btn_prev_page.setProperty("toolbar", "true")
+        self._btn_prev_page.setProperty("iconOnly", "true")
         self._btn_prev_page.setFixedSize(28, 28)
+        self._btn_prev_page.setIconSize(QSize(14, 14))
         pn_layout.addWidget(self._btn_prev_page)
 
         self._lbl_page_info = QLabel("Page 1 / 1")
@@ -341,9 +346,11 @@ class MainWindow(QMainWindow):
         self._lbl_page_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pn_layout.addWidget(self._lbl_page_info)
 
-        self._btn_next_page = QPushButton("▶")
+        self._btn_next_page = QPushButton()
         self._btn_next_page.setProperty("toolbar", "true")
+        self._btn_next_page.setProperty("iconOnly", "true")
         self._btn_next_page.setFixedSize(28, 28)
+        self._btn_next_page.setIconSize(QSize(14, 14))
         pn_layout.addWidget(self._btn_next_page)
 
         layout.addWidget(self._page_nav_widget)
@@ -354,20 +361,20 @@ class MainWindow(QMainWindow):
         self._btn_grid = QPushButton("Grid")
         self._btn_grid.setCheckable(True)
         self._btn_grid.setChecked(False)
-        self._btn_grid.setFixedHeight(24)
         self._btn_grid.setProperty("toolbar", "true")
         layout.addWidget(self._btn_grid)
 
         self._btn_single = QPushButton("Single")
         self._btn_single.setCheckable(True)
-        self._btn_single.setFixedHeight(24)
         self._btn_single.setProperty("toolbar", "true")
         layout.addWidget(self._btn_single)
 
         # 主题切换
-        self._btn_theme = QPushButton("☀")
-        self._btn_theme.setFixedSize(28, 24)
+        self._btn_theme = QPushButton()
+        self._btn_theme.setFixedSize(28, 28)
+        self._btn_theme.setIconSize(QSize(16, 16))
         self._btn_theme.setProperty("toolbar", "true")
+        self._btn_theme.setProperty("iconOnly", "true")
         self._btn_theme.setToolTip("切换 Light/Dark 主题")
         layout.addWidget(self._btn_theme)
 
@@ -558,8 +565,15 @@ class MainWindow(QMainWindow):
         for w in self._toolbar.findChildren(QWidget):
             if w.objectName() == "toolbarSep":
                 w.setStyleSheet(f"background: {c.border};")
-        # 主题按钮文字
-        self._btn_theme.setText("☀" if theme.mode == "light" else "☾")
+        # 主题按钮图标
+        icon_color = c.accent if theme.mode == "light" else c.text
+        if theme.mode == "light":
+            self._btn_theme.setIcon(get_icon("sun", icon_color))
+        else:
+            self._btn_theme.setIcon(get_icon("moon", icon_color))
+        # 页面导航图标
+        self._btn_prev_page.setIcon(get_icon("chevron-left", icon_color))
+        self._btn_next_page.setIcon(get_icon("chevron-right", icon_color))
         # Page info
         self._lbl_page_info.setStyleSheet(f"color: {c.text_secondary}; font-family: {FONT_BODY}; font-size: 13px;")
 
@@ -742,6 +756,10 @@ class MainWindow(QMainWindow):
         if self._view_mode == self._VIEW_EMPTY:
             self._view_mode = self._VIEW_GRID
             self._view_stack.setCurrentIndex(self._VIEW_GRID)
+            self._canvas.fitInView(
+                self._canvas._scene.sceneRect(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+            )
         self._update_button_states()
         self._update_image_list_panel()
 
@@ -1180,9 +1198,15 @@ class MainWindow(QMainWindow):
     def _on_image_loaded(self) -> None:
         self._update_button_states()
         # 从空状态切换到 Grid View
-        if self._view_mode == self._VIEW_EMPTY:
+        was_empty = self._view_mode == self._VIEW_EMPTY
+        if was_empty:
             self._view_mode = self._VIEW_GRID
             self._view_stack.setCurrentIndex(self._VIEW_GRID)
+            # 切换到可见视图后必须重新适配，否则图片显示 1-3% 极小
+            self._canvas.fitInView(
+                self._canvas._scene.sceneRect(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+            )
         self._extracted_panel.set_source_image(self._canvas.source_image)
 
         # PDF 页面导航（从 session 判断，而非 canvas.total_pages）

@@ -12,7 +12,7 @@ v0.6.0: 1:1 复刻 HTML 参考 UI + Light/Dark 双主题 + 工具栏重构 + 空
 v0.6.1: UI 主题重构 — 4 面板 Dark 模式完整支持 + 版本号动态化 + Undo/Redo 禁用逻辑 + Zoom 实时同步 + 9 bug fixes
 """
 
-__version__ = "0.6.0"
+__version__ = "0.6.3"
 
 from photocrop.utils.crop_rect import CropRect
 

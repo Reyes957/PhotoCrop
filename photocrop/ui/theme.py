@@ -157,7 +157,7 @@ QPushButton {{
     border: none;
     border-radius: 6px;
     padding: 0 14px;
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 13px;
     font-weight: 400;
     min-height: 28px;
@@ -181,7 +181,7 @@ QPushButton[toolbar="true"] {{
     border: 1px solid {c.border};
     border-radius: 6px;
     padding: 0 14px;
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 13px;
     font-weight: 400;
     min-height: 28px;
@@ -197,6 +197,9 @@ QPushButton[toolbar="true"]:disabled {{
     background-color: transparent;
     color: {c.text_disabled};
     border-color: {c.border};
+}}
+QPushButton[toolbar="true"][iconOnly="true"] {{
+    padding: 0;
 }}
 
 /* === QPushButton[secondary] — 次要描边按钮 === */
@@ -216,12 +219,12 @@ QPushButton:checked {{
     border-color: transparent;
 }}
 
-/* === QPushButton[export_btn] — Export 胶囊按钮 === */
+/* === QPushButton[export_btn] — Export 按钮 === */
 QPushButton[export_btn="true"] {{
     background-color: {c.accent};
     color: {c.surface};
     border: none;
-    border-radius: 980px;
+    border-radius: 6px;
     padding: 0 20px;
     font-weight: 500;
     min-height: 28px;
@@ -232,7 +235,7 @@ QPushButton[export_btn="true"]:hover {{
 
 /* === QLabel === */
 QLabel {{
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 13px;
     color: {c.text};
     letter-spacing: -0.2px;
@@ -246,7 +249,7 @@ QLabel[pageInfo="true"] {{
 QStatusBar {{
     background-color: {c.bg};
     border-top: 1px solid {c.border};
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
     color: {c.text_secondary};
     padding: 4px 16px;
@@ -259,7 +262,7 @@ QMenu {{
     border: 1px solid {c.border};
     border-radius: 6px;
     padding: 4px;
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
 }}
 QMenu::item {{
@@ -273,13 +276,13 @@ QMenu::item:selected {{
 /* === QSpinBox / QDoubleSpinBox === */
 QSpinBox, QDoubleSpinBox {{
     border: 1px solid {c.border};
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 3px 6px;
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
     background: {c.surface};
     color: {c.text};
-    min-height: 24px;
+    min-height: 28px;
 }}
 QSpinBox:focus, QDoubleSpinBox:focus {{
     border-color: {c.border_strong};
@@ -290,29 +293,17 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
     border: none;
     background: transparent;
 }}
-QSpinBox::up-arrow {{
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 5px solid {c.text_secondary};
-}}
-QSpinBox::down-arrow {{
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid {c.text_secondary};
-}}
 
 /* === QComboBox === */
 QComboBox {{
     border: 1px solid {c.border};
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 3px 28px 3px 6px;
-    font-family: SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif;
+    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
     background: {c.surface};
     color: {c.text};
-    min-height: 24px;
+    min-height: 28px;
 }}
 QComboBox:hover {{
     border-color: {c.border_strong};
@@ -323,13 +314,6 @@ QComboBox::drop-down {{
     width: 22px;
     border: none;
     border-left: 1px solid {c.border};
-}}
-QComboBox::down-arrow {{
-    image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid {c.text_secondary};
-    margin-right: 4px;
 }}
 QComboBox QAbstractItemView {{
     background-color: {c.surface};

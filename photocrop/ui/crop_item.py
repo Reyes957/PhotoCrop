@@ -21,6 +21,7 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QPainter,
+    QPainterPath,
     QPen,
 )
 from PySide6.QtWidgets import (
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
 )
 
+from photocrop.ui.icons import get_icon
 from photocrop.utils.crop_rect import CropRect
 from photocrop.utils.rotation import normalize_angle
 
@@ -42,20 +44,18 @@ _ACCENT = QColor("#000000")
 _ACCENT_HOVER = QColor("#333333")
 _ACCENT_FILL = QColor(0, 0, 0, 10)   # 选中填充 (4% opacity)
 _CANVAS_BG = QColor("#E8E8E8")
-_SURFACE = QColor("#ffffff")
 _DASHED = QColor(102, 102, 102)       # 未选中虚线
 _TOOLBAR_BG = QColor(0, 0, 0, 160)    # 工具栏浮层背景
 
 
 def set_theme_colors(colors) -> None:
     """更新 CropItem 绘制使用的颜色（主题切换时调用）"""
-    global _ACCENT, _ACCENT_HOVER, _ACCENT_FILL, _CANVAS_BG, _SURFACE, _DASHED, _TOOLBAR_BG
+    global _ACCENT, _ACCENT_HOVER, _ACCENT_FILL, _CANVAS_BG, _DASHED, _TOOLBAR_BG
     _ACCENT = QColor(colors.accent)
     _ACCENT_HOVER = QColor(colors.accent_hover)
     _ACCENT_FILL = QColor(colors.accent)
     _ACCENT_FILL.setAlpha(10)
     _CANVAS_BG = QColor(colors.canvas_bg)
-    _SURFACE = QColor(colors.surface)
     _DASHED = QColor(102, 102, 102) if colors.accent == "#000000" else QColor(85, 85, 85)
     # 工具栏浮层：使用 theme 的 toolbar_float token
     _TOOLBAR_BG = _parse_rgba(colors.toolbar_float)
@@ -152,6 +152,18 @@ class CropItem(QGraphicsRectItem):
         self._on_rotate_left = on_rotate_left
         self._on_rotate_right = on_rotate_right
 
+    def boundingRect(self) -> QRectF:
+        """扩展上边界以包含工具栏区域，确保鼠标事件可达"""
+        r = super().boundingRect()
+        # 向上扩展 36px 以包含工具栏（y=-32 到 y=-4）和旋转手柄（y=-28）
+        return r.adjusted(-6, -36, 6, 6)
+
+    def shape(self) -> QPainterPath:
+        """扩展碰撞检测区域以包含工具栏"""
+        path = QPainterPath()
+        path.addRect(self.boundingRect())
+        return path
+
     @property
     def crop_rect(self) -> CropRect:
         return self._crop_rect
@@ -209,8 +221,7 @@ class CropItem(QGraphicsRectItem):
         # 选中时绘制手柄和工具栏（在旋转坐标系内）
         if is_selected:
             self._paint_handles(painter, rect)
-            if self._hovered_handle != HandlePosition.NONE or self._is_toolbar_hovered:
-                self._paint_toolbar(painter, rect)
+            self._paint_toolbar(painter, rect)
 
         painter.restore()
 
@@ -271,12 +282,13 @@ class CropItem(QGraphicsRectItem):
 
     TOOLBAR_BUTTON_SIZE = 20
     TOOLBAR_GAP = 4
-    TOOLBAR_LABELS = ["👁", "✕", "↺", "⧉"]  # view, delete, rotate, copy (参考设计)
+    TOOLBAR_ICONS = ["eye", "x", "rotate-ccw", "rotate-cw", "copy"]  # view, delete, rotate CCW, rotate CW, copy
+    TOOLBAR_ICON_COLOR = "#F0F0F0"  # 始终浅色，浮层背景为深色
 
     def _toolbar_rects(self, rect: QRectF) -> list:
         """返回工具栏按钮的 QRectF（在裁剪框坐标系内）"""
         btn_w = self.TOOLBAR_BUTTON_SIZE
-        n = len(self.TOOLBAR_LABELS)
+        n = len(self.TOOLBAR_ICONS)
         total_w = btn_w * n + self.TOOLBAR_GAP * (n - 1)
         x_start = rect.center().x() - total_w / 2
         y = rect.top() - 28  # 框上方 28px
@@ -292,7 +304,7 @@ class CropItem(QGraphicsRectItem):
         btn_rects = self._toolbar_rects(rect)
 
         # 背景
-        n = len(self.TOOLBAR_LABELS)
+        n = len(self.TOOLBAR_ICONS)
         total_w = self.TOOLBAR_BUTTON_SIZE * n + self.TOOLBAR_GAP * (n - 1)
         bg_rect = QRectF(
             rect.center().x() - total_w / 2 - 4,
@@ -305,11 +317,7 @@ class CropItem(QGraphicsRectItem):
         painter.drawRoundedRect(bg_rect, 4, 4)
 
         # 按钮
-        font = painter.font()
-        font.setPointSize(10)
-        painter.setFont(font)
-
-        for _i, (btn_rect, label) in enumerate(zip(btn_rects, self.TOOLBAR_LABELS)):
+        for _i, (btn_rect, icon_name) in enumerate(zip(btn_rects, self.TOOLBAR_ICONS)):
             # 按钮背景
             if btn_rect.contains(self._toolbar_hover_pos):
                 painter.setBrush(QBrush(QColor(255, 255, 255, 30)))
@@ -317,9 +325,10 @@ class CropItem(QGraphicsRectItem):
                 painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(btn_rect, 3, 3)
 
-            # 图标文字
-            painter.setPen(QPen(_SURFACE))
-            painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, label)
+            # SVG 图标
+            icon = get_icon(icon_name, self.TOOLBAR_ICON_COLOR)
+            icon_rect = btn_rect.adjusted(3, 3, -3, -3)
+            icon.paint(painter, icon_rect.toRect(), Qt.AlignmentFlag.AlignCenter)
 
     @property
     def _toolbar_hover_pos(self) -> QPointF:
@@ -418,7 +427,7 @@ class CropItem(QGraphicsRectItem):
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            # 先检查工具栏按钮（4 个：👁view ✕delete ↺rotate ⧉copy）
+            # 先检查工具栏按钮（5 个：eye view / x delete / rotate-ccw / rotate-cw / copy）
             toolbar_idx = self._toolbar_button_at(event.pos())
             if toolbar_idx == 0 and self._on_view_single:
                 self._on_view_single()
@@ -434,7 +443,11 @@ class CropItem(QGraphicsRectItem):
                 self._on_rotate_left()
                 event.accept()
                 return
-            elif toolbar_idx == 3 and self._on_copy:
+            elif toolbar_idx == 3 and self._on_rotate_right:
+                self._on_rotate_right()
+                event.accept()
+                return
+            elif toolbar_idx == 4 and self._on_copy:
                 self._on_copy()
                 event.accept()
                 return

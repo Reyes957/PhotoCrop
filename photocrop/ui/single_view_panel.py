@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PIL import Image
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
@@ -27,10 +27,11 @@ from PySide6.QtWidgets import (
 )
 
 from photocrop.export.cropper import export_photo_to_memory
+from photocrop.ui.icons import get_icon
 from photocrop.ui.utils import pil_to_pixmap, pil_to_qimage
 from photocrop.utils.crop_rect import CropRect
 
-FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass
@@ -41,6 +42,7 @@ class _PanelColors:
     text: str = "#1A1A1A"
     text_secondary: str = "#666666"
     accent: str = "#000000"
+    hover_bg: str = "rgba(0, 0, 0, 0.03)"
 
 
 class SingleViewPanel(QWidget):
@@ -114,8 +116,9 @@ class SingleViewPanel(QWidget):
         nav_layout.setContentsMargins(8, 4, 8, 4)
         nav_layout.setSpacing(8)
 
-        self._btn_prev = QPushButton("◀")
+        self._btn_prev = QPushButton()
         self._btn_prev.setFixedSize(28, 28)
+        self._btn_prev.setIconSize(QSize(14, 14))
         self._btn_prev.clicked.connect(self._go_prev)
         nav_layout.addWidget(self._btn_prev)
 
@@ -123,8 +126,9 @@ class SingleViewPanel(QWidget):
         self._lbl_page.setAlignment(Qt.AlignmentFlag.AlignCenter)
         nav_layout.addWidget(self._lbl_page, 1)
 
-        self._btn_next = QPushButton("▶")
+        self._btn_next = QPushButton()
         self._btn_next.setFixedSize(28, 28)
+        self._btn_next.setIconSize(QSize(14, 14))
         self._btn_next.clicked.connect(self._go_next)
         nav_layout.addWidget(self._btn_next)
 
@@ -153,15 +157,15 @@ class SingleViewPanel(QWidget):
             f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 14px;"
         )
         nav_bar_style = f"background-color: {c.panel_bg}; border-radius: 6px;"
+        self._btn_prev.setIcon(get_icon("chevron-left", c.text))
         self._btn_prev.setStyleSheet(
-            f"QPushButton {{ background-color: transparent; color: {c.text}; "
-            f"border: none; font-size: 14px; }}"
-            f"QPushButton:hover {{ color: {c.accent}; }}"
+            f"QPushButton {{ background-color: transparent; border: none; }}"
+            f"QPushButton:hover {{ background-color: {c.hover_bg}; }}"
         )
+        self._btn_next.setIcon(get_icon("chevron-right", c.text))
         self._btn_next.setStyleSheet(
-            f"QPushButton {{ background-color: transparent; color: {c.text}; "
-            f"border: none; font-size: 14px; }}"
-            f"QPushButton:hover {{ color: {c.accent}; }}"
+            f"QPushButton {{ background-color: transparent; border: none; }}"
+            f"QPushButton:hover {{ background-color: {c.hover_bg}; }}"
         )
         self._lbl_page.setStyleSheet(f"color: {c.text}; font-family: {FONT_FAMILY}; font-size: 13px;")
         # 导航条背景
@@ -282,6 +286,6 @@ class SingleViewPanel(QWidget):
         self._colors = _PanelColors(
             bg=colors.canvas_bg, panel_bg=colors.bg,
             text=colors.text, text_secondary=colors.text_secondary,
-            accent=colors.accent,
+            accent=colors.accent, hover_bg=colors.hover_bg,
         )
         self._apply_styles()

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 from PIL import Image
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from photocrop.export.cropper import export_photo_to_memory
+from photocrop.ui.icons import get_icon
 from photocrop.ui.utils import pil_to_pixmap
 from photocrop.utils.crop_rect import CropRect
 
@@ -38,7 +39,7 @@ class PageCropRef(NamedTuple):
     local_idx: int
 
 
-FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass
@@ -48,6 +49,7 @@ class _PanelColors:
     surface: str = "#FFFFFF"
     card_bg: str = "#FFFFFF"
     card_hover: str = "#F0F0F0"
+    hover_bg: str = "rgba(0, 0, 0, 0.03)"
     text: str = "#1A1A1A"
     text_secondary: str = "#666666"
     border: str = "#E0E0E0"
@@ -327,12 +329,13 @@ class ExtractedImagesPanel(QWidget):
         bottom.addStretch()
 
         if show_delete:
-            btn_del = QPushButton("✕")
+            btn_del = QPushButton()
             btn_del.setFixedSize(16, 16)
+            btn_del.setIcon(get_icon("x", c.text_secondary))
+            btn_del.setIconSize(QSize(10, 10))
             btn_del.setStyleSheet(
-                f"QPushButton {{ background-color: transparent; color: {c.text_secondary}; "
-                f"border: none; font-size: 10px; padding: 0; }}"
-                f"QPushButton:hover {{ color: {c.danger}; }}"
+                f"QPushButton {{ background-color: transparent; border: none; padding: 0; }}"
+                f"QPushButton:hover {{ background-color: {c.hover_bg}; }}"
             )
             btn_del.clicked.connect(lambda _, idx=index: self.crop_delete_requested.emit(idx))
             bottom.addWidget(btn_del)
@@ -385,6 +388,7 @@ class ExtractedImagesPanel(QWidget):
         self._colors = _PanelColors(
             bg=colors.bg, surface=colors.surface,
             card_bg=colors.surface, card_hover=colors.hover_bg,
+            hover_bg=colors.hover_bg,
             text=colors.text, text_secondary=colors.text_secondary,
             border=colors.border, accent=colors.accent,
             danger=colors.danger, canvas_bg=colors.canvas_bg,

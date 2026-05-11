@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from photocrop.utils.crop_rect import CropRect
 
-FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass

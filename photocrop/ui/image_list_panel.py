@@ -29,7 +29,7 @@ from photocrop.ui.utils import pil_to_pixmap
 # 默认样式常量（初始化时使用，set_theme 后会被覆盖）
 # ============================================================
 
-FONT_FAMILY = "SF Pro Text, SF Pro Icons, Helvetica Neue, Helvetica, Arial, sans-serif"
+FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass
