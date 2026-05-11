@@ -198,7 +198,7 @@ class ImageListPanel(QWidget):
                 pdf_key = data["key"]
                 # 收集要移除的子项 key
                 child_keys = [k for k in self._path_keys
-                              if k.startswith(f"{pdf_key}::page_")]
+                              if k.startswith(f"{pdf_key}##PAGE##")]
                 # 先移除子项（从后往前）
                 for ck in reversed(child_keys):
                     ci = self._path_keys.index(ck)
@@ -321,7 +321,7 @@ class ImageListPanel(QWidget):
 
         # 子项
         for idx in range(page_count):
-            page_key = f"{pdf_key}::page_{idx}"
+            page_key = f"{pdf_key}##PAGE##{idx}"
             self._path_keys.append(page_key)
             thumb = page_thumbs[idx] if page_thumbs and idx < len(page_thumbs) else None
             page_widget = self._create_page_widget(idx, 0, thumb)
