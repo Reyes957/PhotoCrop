@@ -12,10 +12,19 @@ Apple 设计风格：
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import (
+    QPointF,
+    QRectF,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
     QPainter,
     QPen,
     QPixmap,
@@ -24,6 +33,9 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsScene,
     QGraphicsView,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
 )
 
 from photocrop.engine.core import detect_rectangles
@@ -51,6 +63,7 @@ class CropCanvas(QGraphicsView):
     view_single_requested = Signal(int)  # 请求切换到 Single View，参数为裁剪框索引
     zoom_changed = Signal()           # 缩放比例变化（滚轮/按钮）
     crop_rotating = Signal(float)     # 旋转中实时角度（轻量，仅更新属性面板）
+    files_dropped = Signal(list)      # 拖拽导入的文件路径列表
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -92,6 +105,15 @@ class CropCanvas(QGraphicsView):
 
         # 监听 scene 选中变化
         self._scene.selectionChanged.connect(self._on_selection_changed)
+
+        # 拖拽导入支持
+        self.setAcceptDrops(True)
+        self._drag_overlay: QWidget | None = None
+
+        # Loading 状态指示器
+        self._loading_overlay: QWidget | None = None
+        self._spinner_angle: float = 0
+        self._spinner_timer: QTimer | None = None
 
     def set_theme(self, colors) -> None:
         """更新画布背景色和裁剪框颜色"""
@@ -574,6 +596,170 @@ class CropCanvas(QGraphicsView):
         scene_pos = self.mapToScene(pos.toPoint())
         item = self._scene.itemAt(scene_pos, self.transform())
         return item is not None and item is not self._pixmap_item
+
+    # ---- 拖拽导入 ----
+
+    SUPPORTED_FORMATS = {
+        ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp", ".pdf",
+    }
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        """拖拽进入画布时显示半透明遮罩"""
+        mime = event.mimeData()
+        if mime.hasUrls():
+            # 检查是否有支持的文件格式
+            urls = mime.urls()
+            has_supported = any(
+                Path(u.toLocalFile()).suffix.lower() in self.SUPPORTED_FORMATS
+                for u in urls if u.isLocalFile()
+            )
+            if has_supported:
+                event.acceptProposedAction()
+                self._show_drag_overlay(valid=True)
+                return
+            else:
+                event.acceptProposedAction()
+                self._show_drag_overlay(valid=False)
+                return
+        event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        """持续接受拖拽"""
+        event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event) -> None:
+        """拖拽离开时移除遮罩"""
+        self._hide_drag_overlay()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        """拖拽放下时提取文件路径并导入"""
+        self._hide_drag_overlay()
+        mime = event.mimeData()
+        if not mime.hasUrls():
+            event.ignore()
+            return
+
+        paths = []
+        for url in mime.urls():
+            if url.isLocalFile():
+                p = Path(url.toLocalFile())
+                if p.suffix.lower() in self.SUPPORTED_FORMATS:
+                    paths.append(str(p))
+
+        if paths:
+            event.acceptProposedAction()
+            self.files_dropped.emit(paths)
+        else:
+            event.ignore()
+
+    def _show_drag_overlay(self, valid: bool = True) -> None:
+        """显示拖拽遮罩"""
+        if self._drag_overlay is not None:
+            self._hide_drag_overlay()
+
+        overlay = QWidget(self.viewport())
+        overlay.setGeometry(self.viewport().rect())
+        overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+
+        layout = QVBoxLayout(overlay)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # 虚线框容器
+        box = QWidget()
+        box.setFixedSize(300, 120)
+        box.setStyleSheet(
+            f"border: 2px dashed {'#000000' if valid else '#CC0000'};"
+            f"border-radius: 12px;"
+            f"background: rgba({'0,0,0' if valid else '204,0,0'}, 0.05);"
+        )
+        box_layout = QVBoxLayout(box)
+        box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        icon_label = QLabel("⬆" if valid else "⚠")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label.setStyleSheet(
+            f"font-size: 24px; color: {'#000000' if valid else '#CC0000'}; border: none; background: transparent;"
+        )
+        box_layout.addWidget(icon_label)
+
+        text = "Drop images here to import" if valid else "Unsupported file format"
+        text_label = QLabel(text)
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setStyleSheet(
+            f"font-size: 13px; color: {'#000000' if valid else '#CC0000'}; border: none; background: transparent;"
+        )
+        box_layout.addWidget(text_label)
+
+        layout.addWidget(box)
+
+        # 半透明背景
+        overlay.setStyleSheet("background: rgba(0, 0, 0, 0.08);")
+        overlay.show()
+        self._drag_overlay = overlay
+
+    def _hide_drag_overlay(self) -> None:
+        """隐藏拖拽遮罩"""
+        if self._drag_overlay is not None:
+            self._drag_overlay.hide()
+            self._drag_overlay.deleteLater()
+            self._drag_overlay = None
+
+    # ---- Loading 状态指示器 ----
+
+    def show_loading(self, message: str = "Loading image...") -> None:
+        """显示 loading 遮罩（半透明背景 + spinner + 文字）"""
+        self.hide_loading()
+
+        overlay = QWidget(self.viewport())
+        overlay.setGeometry(self.viewport().rect())
+        overlay.setStyleSheet("background: rgba(245, 245, 245, 0.5);")
+
+        layout = QVBoxLayout(overlay)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Spinner 文字
+        spinner_label = QLabel("⟳")
+        spinner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        spinner_label.setStyleSheet(
+            "font-size: 32px; color: #000000; background: transparent;"
+        )
+        layout.addWidget(spinner_label)
+
+        # 提示文字
+        text_label = QLabel(message)
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setStyleSheet(
+            "font-size: 13px; color: #666666; background: transparent;"
+            "font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;"
+        )
+        layout.addWidget(text_label)
+
+        overlay.show()
+        self._loading_overlay = overlay
+
+        # 启动 spinner 旋转动画
+        self._spinner_angle = 0
+        self._spinner_timer = QTimer()
+        self._spinner_timer.timeout.connect(lambda: self._rotate_spinner(spinner_label))
+        self._spinner_timer.start(50)
+
+    def _rotate_spinner(self, label: QLabel) -> None:
+        """旋转 spinner"""
+        self._spinner_angle = (self._spinner_angle + 10) % 360
+        label.setStyleSheet(
+            f"font-size: 32px; color: #000000; background: transparent;"
+            f"transform: rotate({self._spinner_angle}deg);"
+        )
+
+    def hide_loading(self) -> None:
+        """隐藏 loading 遮罩"""
+        if self._spinner_timer is not None:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+        if self._loading_overlay is not None:
+            self._loading_overlay.hide()
+            self._loading_overlay.deleteLater()
+            self._loading_overlay = None
 
     # ---- 缩放 ----
 

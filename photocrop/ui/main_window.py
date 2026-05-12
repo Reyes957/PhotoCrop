@@ -48,6 +48,7 @@ from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.single_view_panel import SingleViewPanel
 from photocrop.ui.state import AppState, SessionState
 from photocrop.ui.theme import theme
+from photocrop.ui.toast import show_toast
 
 # ============================================================
 # 常量
@@ -66,6 +67,13 @@ DETECTOR_OPTIONS = [
     ("组合检测", "combined"),
     ("YOLO-World", "yolo-world"),
 ]
+
+DETECTOR_TOOLTIPS = {
+    "cv": "CV (Default): Fast edge-based detection. Best for well-separated photos on clean backgrounds.",
+    "enhanced-cv": "Enhanced CV: Improved edge detection with noise filtering. Better for low-quality scans.",
+    "combined": "Combined: Uses both edge detection and contour analysis. Slower but more accurate.",
+    "yolo-world": "YOLO-World: AI-powered object detection. Best for complex layouts and mixed content.",
+}
 
 
 # ============================================================
@@ -232,13 +240,15 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_load)
 
         self._combo_detector = QComboBox()
-        for label, _ in DETECTOR_OPTIONS:
+        for label, _key in DETECTOR_OPTIONS:
             self._combo_detector.addItem(label)
         self._combo_detector.setCurrentIndex(0)
         self._combo_detector.setFixedWidth(120)
         self._combo_detector.setFixedHeight(28)
-        self._combo_detector.setToolTip("选择检测算法")
+        self._combo_detector.currentIndexChanged.connect(self._on_detector_changed)
         layout.addWidget(self._combo_detector)
+        # 初始 tooltip
+        self._update_detector_tooltip()
 
         self._btn_detect = QPushButton("Detect")
         self._btn_detect.setProperty("toolbar", "true")
@@ -431,6 +441,7 @@ class MainWindow(QMainWindow):
         self._canvas.view_single_requested.connect(self._on_view_single_requested)
         self._canvas.zoom_changed.connect(self._update_zoom_label)
         self._canvas.crop_rotating.connect(self._on_crop_rotating)
+        self._canvas.files_dropped.connect(self._on_files_dropped)
 
         # 右面板信号
         self._crop_options_panel.rect_changed.connect(self._on_crop_options_changed)
@@ -555,6 +566,18 @@ class MainWindow(QMainWindow):
             idx = 0
         return DETECTOR_OPTIONS[idx][1]
 
+    def _on_detector_changed(self, index: int) -> None:
+        """检测器下拉框变化时更新 tooltip"""
+        self._update_detector_tooltip()
+
+    def _update_detector_tooltip(self) -> None:
+        """更新检测器下拉框的 tooltip"""
+        idx = self._combo_detector.currentIndex()
+        if 0 <= idx < len(DETECTOR_OPTIONS):
+            key = DETECTOR_OPTIONS[idx][1]
+            tooltip = DETECTOR_TOOLTIPS.get(key, "")
+            self._combo_detector.setToolTip(tooltip)
+
     def _on_load(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "选择图片或 PDF", "",
@@ -656,12 +679,15 @@ class MainWindow(QMainWindow):
             return
 
         self._app_state.status_message.emit(f"正在检测（{detector}）...")
+        self._canvas.show_loading("Detecting photos...")
         QApplication.processEvents()
         try:
             count = self._detect_ctrl.detect_current(
                 detector, max_count, self._canvas,
             )
+            self._canvas.hide_loading()
             self._app_state.status_message.emit(f"检测到 {count} 个照片")
+            show_toast(f"Detected {count} photos", self)
             self._update_button_states()
             self._update_image_list_panel()
         except ImportError as e:
@@ -727,6 +753,7 @@ class MainWindow(QMainWindow):
             if errors:
                 msg += f"\n\n失败 {len(errors)} 张:\n" + "\n".join(errors)
             QMessageBox.information(self, "导出完成", msg)
+            show_toast(f"Export complete: {exported} images to {output_dir}", self)
             self._app_state.status_message.emit(
                 f"导出完成: {exported} 张 → {output_dir}"
             )
@@ -1001,6 +1028,21 @@ class MainWindow(QMainWindow):
 
     def _on_load_error(self, _path: str, error: str) -> None:
         QMessageBox.critical(self, "加载失败", f"无法打开文件:\n{error}")
+
+    def _on_files_dropped(self, paths: list[str]) -> None:
+        """拖拽导入文件"""
+        for path_str in paths:
+            self._load_single_file(path_str)
+        if paths:
+            last_path = paths[-1]
+            last_sess = self._app_state.get_session(last_path)
+            if last_sess and last_sess.is_pdf:
+                page_key = self._app_state.get_page_key(last_path, 0)
+                self._image_list_panel.select_image(page_key)
+                self._on_image_selected(page_key)
+            else:
+                self._image_list_panel.select_image(last_path)
+                self._on_image_selected(last_path)
 
     # ================================================================
     # UI 更新（被动响应）

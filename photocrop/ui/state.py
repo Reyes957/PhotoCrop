@@ -36,12 +36,12 @@ class SessionState:
     source_path: Path                           # 原始文件路径
     source_image: Image.Image                   # 当前显示的图像（PIL）
     crop_rects: list[CropRect] = field(default_factory=list)  # 当前页面的裁剪框
-    undo_snapshot: list = field(default_factory=list)         # UndoManager.serialize() 结果
+    undo_snapshot: str | list = field(default_factory=list)   # UndoManager.serialize() 结果（JSON str 或 legacy list）
     is_pdf: bool = False
     page_count: int = 1
     current_page: int = 0
     page_crop_rects: dict[int, list[CropRect]] = field(default_factory=dict)   # page_idx -> list[CropRect]
-    page_undo_snapshots: dict[int, list] = field(default_factory=dict)         # page_idx -> bytes/serialized
+    page_undo_snapshots: dict[int, str | list] = field(default_factory=dict)   # page_idx -> JSON str 或 legacy list
     page_thumbnails: list[Image.Image] = field(default_factory=list)           # list[Image.Image]
     pdf_page_loader: Callable[[int], Image.Image] | None = None  # 由 SessionController 注入
 

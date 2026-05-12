@@ -4,6 +4,9 @@ UndoManager — 裁剪框操作的撤销/重做管理器
 维护两个栈：undo_stack 和 redo_stack。
 每个栈帧是一组 CropRect 的深拷贝快照。
 
+v0.6.4: serialize/deserialize 保存完整双栈（而非单帧），
+Session 切换后撤销历史不丢失。
+
 用法：
     manager = UndoManager()
     manager.push_state(current_rects)  # 保存当前状态
@@ -14,8 +17,21 @@ UndoManager — 裁剪框操作的撤销/重做管理器
 from __future__ import annotations
 
 import copy
+import json
 
 from photocrop.utils.crop_rect import CropRect
+
+
+def _rect_to_dict(r: CropRect) -> dict:
+    return {
+        "x": r.x, "y": r.y, "width": r.width, "height": r.height,
+        "rotation_angle": r.rotation_angle,
+        "source_type": r.source_type, "page_num": r.page_num,
+    }
+
+
+def _rect_from_dict(d: dict) -> CropRect:
+    return CropRect(**d)
 
 
 class UndoManager:
@@ -69,29 +85,68 @@ class UndoManager:
         self._undo_stack.clear()
         self._redo_stack.clear()
 
-    def serialize(self) -> list:
-        """将 undo_stack 最后一帧序列化为可 JSON 的 dict 列表
+    # ================================================================
+    # 序列化 — 保存完整双栈（v0.6.4 修复）
+    # ================================================================
 
-        用于多图像管理：保存当前图像的裁剪框状态。
+    def serialize(self) -> str:
+        """将完整的 undo_stack + redo_stack 序列化为 JSON 字符串
+
+        v0.6.4: 保存完整双栈结构（而非仅最后一帧），
+        Session 切换后撤销/重做历史完整保留。
         """
+        data = {
+            "undo": [[_rect_to_dict(r) for r in frame]
+                     for frame in self._undo_stack],
+            "redo": [[_rect_to_dict(r) for r in frame]
+                     for frame in self._redo_stack],
+        }
+        return json.dumps(data)
+
+    def deserialize(self, snapshot: str | list) -> None:
+        """从序列化数据恢复完整的 undo/redo 栈
+
+        v0.6.4: 恢复完整双栈结构。兼容旧版 list 格式（单帧回退）。
+
+        Args:
+            snapshot: JSON 字符串（新格式）或 dict 列表（旧格式兼容）
+        """
+        # 兼容旧版：list 格式只有一帧
+        if isinstance(snapshot, list):
+            self.clear()
+            if snapshot:
+                self.push_state([_rect_from_dict(d) for d in snapshot])
+            return
+
+        try:
+            data = json.loads(snapshot)
+        except (json.JSONDecodeError, TypeError):
+            self.clear()
+            return
+
+        self._undo_stack = [
+            [_rect_from_dict(r) for r in frame]
+            for frame in data.get("undo", [])
+        ]
+        self._redo_stack = [
+            [_rect_from_dict(r) for r in frame]
+            for frame in data.get("redo", [])
+        ]
+
+    # ================================================================
+    # 旧版兼容接口（保留给非关键路径）
+    # ================================================================
+
+    def serialize_legacy(self) -> list:
+        """旧版序列化：仅保存最后一帧（向后兼容）"""
         if not self._undo_stack:
             return []
         current = self._undo_stack[-1]
-        return [
-            {
-                "x": r.x, "y": r.y, "width": r.width, "height": r.height,
-                "rotation_angle": r.rotation_angle,
-                "source_type": r.source_type, "page_num": r.page_num,
-            }
-            for r in current
-        ]
+        return [_rect_to_dict(r) for r in current]
 
-    def deserialize(self, data: list) -> list[CropRect]:
-        """从 dict 列表恢复为 CropRect 列表，并推入 undo 栈作为初始状态
-
-        用于多图像管理：切换图像时恢复裁剪框状态。
-        """
-        rects = [CropRect(**d) for d in data]
+    def deserialize_legacy(self, data: list) -> list[CropRect]:
+        """旧版反序列化：从 dict 列表恢复为 CropRect 列表"""
+        rects = [_rect_from_dict(d) for d in data]
         self.clear()
         self.push_state(rects)
         return rects

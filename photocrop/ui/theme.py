@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QEasingCurve, QObject, QVariantAnimation, Signal
+from PySide6.QtGui import QColor
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,54 @@ DARK = ThemeColors(
 
 
 # ============================================================
+# ThemeTransition — 主题切换过渡动画管理器
+# ============================================================
+
+class ThemeTransition:
+    """主题切换过渡动画
+
+    350ms cubic-bezier(0.4, 0, 0.2, 1) 过渡所有颜色属性。
+    优先级：大面积背景（画布、面板）必须做过渡；文字颜色可瞬间切换。
+    """
+
+    DURATION = 350  # ms
+
+    @staticmethod
+    def _lerp_color(c1: str, c2: str, t: float) -> str:
+        """在两个颜色之间线性插值"""
+        color1 = QColor(c1)
+        color2 = QColor(c2)
+        r = int(color1.red() + (color2.red() - color1.red()) * t)
+        g = int(color1.green() + (color2.green() - color1.green()) * t)
+        b = int(color1.blue() + (color2.blue() - color1.blue()) * t)
+        a = int(color1.alpha() + (color2.alpha() - color1.alpha()) * t)
+        return f"rgba({r}, {g}, {b}, {a})" if a < 255 else f"#{r:02x}{g:02x}{b:02x}"
+
+    @classmethod
+    def interpolate_colors(cls, start: ThemeColors, end: ThemeColors, t: float) -> ThemeColors:
+        """在两个 ThemeColors 之间插值"""
+        return ThemeColors(
+            bg=cls._lerp_color(start.bg, end.bg, t),
+            canvas_bg=cls._lerp_color(start.canvas_bg, end.canvas_bg, t),
+            surface=cls._lerp_color(start.surface, end.surface, t),
+            text=cls._lerp_color(start.text, end.text, t),
+            text_secondary=cls._lerp_color(start.text_secondary, end.text_secondary, t),
+            text_disabled=cls._lerp_color(start.text_disabled, end.text_disabled, t),
+            border=cls._lerp_color(start.border, end.border, t),
+            border_strong=cls._lerp_color(start.border_strong, end.border_strong, t),
+            accent=cls._lerp_color(start.accent, end.accent, t),
+            accent_hover=cls._lerp_color(start.accent_hover, end.accent_hover, t),
+            danger=cls._lerp_color(start.danger, end.danger, t),
+            selected_bg=cls._lerp_color(start.selected_bg, end.selected_bg, t),
+            hover_bg=cls._lerp_color(start.hover_bg, end.hover_bg, t),
+            toolbar_float=cls._lerp_color(start.toolbar_float, end.toolbar_float, t),
+            page_bg=cls._lerp_color(start.page_bg, end.page_bg, t),
+            photo_slot=cls._lerp_color(start.photo_slot, end.photo_slot, t),
+            photo_inner=cls._lerp_color(start.photo_inner, end.photo_inner, t),
+        )
+
+
+# ============================================================
 # ThemeManager 单例
 # ============================================================
 
@@ -106,7 +155,7 @@ class ThemeManager(QObject):
     用法：
         from photocrop.ui.theme import theme
         c = theme.colors  # 当前颜色集
-        theme.toggle()    # 切换 Light ↔ Dark
+        theme.toggle()    # 切换 Light ↔ Dark（带 350ms 过渡动画）
     """
 
     theme_changed = Signal(ThemeColors)
@@ -114,6 +163,7 @@ class ThemeManager(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._mode = "light"  # "light" | "dark"
+        self._transition_anim: QVariantAnimation | None = None
 
     @property
     def mode(self) -> str:
@@ -124,22 +174,49 @@ class ThemeManager(QObject):
         return LIGHT if self._mode == "light" else DARK
 
     def toggle(self) -> ThemeColors:
-        """切换主题，返回新颜色集"""
-        self._mode = "dark" if self._mode == "light" else "light"
-        c = self.colors
-        self.theme_changed.emit(c)
-        return c
+        """切换主题（带 350ms 过渡动画），返回新颜色集"""
+        new_mode = "dark" if self._mode == "light" else "light"
+        return self.set_mode(new_mode, animate=True)
 
-    def set_mode(self, mode: str) -> ThemeColors:
+    def set_mode(self, mode: str, animate: bool = True) -> ThemeColors:
         """设置指定主题模式"""
         if mode not in ("light", "dark"):
             mode = "light"
         if mode == self._mode:
             return self.colors
+
+        start_colors = self.colors
         self._mode = mode
-        c = self.colors
-        self.theme_changed.emit(c)
-        return c
+        end_colors = self.colors
+
+        if animate:
+            self._animate_transition(start_colors, end_colors)
+        else:
+            self.theme_changed.emit(end_colors)
+
+        return end_colors
+
+    def _animate_transition(self, start: ThemeColors, end: ThemeColors) -> None:
+        """执行 350ms 颜色过渡动画"""
+        # 取消正在进行的过渡
+        if self._transition_anim is not None:
+            self._transition_anim.stop()
+
+        anim = QVariantAnimation()
+        anim.setDuration(ThemeTransition.DURATION)
+        anim.setEasingCurve(QEasingCurve.Type.BezierSpline)
+        # cubic-bezier(0.4, 0, 0.2, 1)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+
+        def on_value_changed(value):
+            t = value
+            interpolated = ThemeTransition.interpolate_colors(start, end, t)
+            self.theme_changed.emit(interpolated)
+
+        anim.valueChanged.connect(on_value_changed)
+        anim.start()
+        self._transition_anim = anim
 
     def generate_stylesheet(self) -> str:
         """生成全局 QSS 样式表"""
