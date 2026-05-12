@@ -63,6 +63,12 @@ class SessionController(QObject):
     def _load_image(self, path: Path) -> SessionState:
         """加载普通图片，返回 SessionState"""
         img = Image.open(path)
+        # EXIF 方向校正 — 自动旋转至正确方向
+        from PIL import ImageOps
+        try:
+            img = ImageOps.exif_transpose(img)
+        except (AttributeError, KeyError, TypeError):
+            pass  # 无 EXIF 数据或格式不支持
         # 统一转换（灰度/RGBA 保留，其他模式转 RGB）
         if img.mode not in ("RGB", "L", "RGBA"):
             img = img.convert("RGB")

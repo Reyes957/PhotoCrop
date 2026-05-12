@@ -129,7 +129,7 @@ class CropOptionsPanel(QWidget):
         row_rot.layout().addWidget(self._spin_rotation, 1)
 
         self._btn_reset_rotation = QPushButton("Reset")
-        self._btn_reset_rotation.setFixedSize(44, 24)
+        self._btn_reset_rotation.setFixedSize(48, 24)
         self._btn_reset_rotation.clicked.connect(self._on_reset_rotation)
         row_rot.layout().addWidget(self._btn_reset_rotation)
         form_layout.addWidget(row_rot)
@@ -173,7 +173,7 @@ class CropOptionsPanel(QWidget):
         )
         for spin in [self._spin_width, self._spin_height, self._spin_x, self._spin_y, self._spin_rotation]:
             spin.setStyleSheet(input_style)
-        # ComboBox
+        # ComboBox — 与其他输入框保持一致的样式
         self._combo_aspect.setStyleSheet(
             f"QComboBox {{"
             f"background-color: {c.surface}; color: {c.text}; "
@@ -181,7 +181,12 @@ class CropOptionsPanel(QWidget):
             f"padding: 3px 6px; font-family: {FONT_FAMILY}; "
             f"font-size: 12px; min-height: 24px;"
             f"}}"
+            f"QComboBox:hover {{ border-color: {c.border_strong}; }}"
             f"QComboBox:focus {{ border-color: {c.border_strong}; }}"
+            f"QComboBox::drop-down {{"
+            f"subcontrol-origin: padding; subcontrol-position: top right; "
+            f"width: 20px; border: none; border-left: 1px solid {c.border};"
+            f"}}"
         )
         # Reset 按钮
         self._btn_reset_rotation.setStyleSheet(
@@ -213,8 +218,10 @@ class CropOptionsPanel(QWidget):
         row_layout.setSpacing(8)
         lbl = QLabel(label)
         lbl.setFixedWidth(56)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         lbl.setStyleSheet(
-            f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 12px;"
+            f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
+            f"font-size: 12px; padding-left: 2px;"
         )
         row_layout.addWidget(lbl)
         return row

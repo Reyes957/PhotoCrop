@@ -174,6 +174,25 @@ QPushButton:disabled {{
     color: {c.text_disabled};
 }}
 
+/* === #bottomBar QPushButton — 底栏缩放按钮（更紧凑） === */
+#bottomBar QPushButton {{
+    background-color: transparent;
+    color: {c.text};
+    border: 1px solid {c.border};
+    border-radius: 4px;
+    padding: 0 8px;
+    font-size: 11px;
+    min-height: 20px;
+    font-weight: 400;
+}}
+#bottomBar QPushButton:hover {{
+    background-color: {c.hover_bg};
+    border-color: {c.border_strong};
+}}
+#bottomBar QPushButton:pressed {{
+    background-color: {c.selected_bg};
+}}
+
 /* === QPushButton[toolbar] — 工具栏操作按钮 === */
 QPushButton[toolbar="true"] {{
     background-color: transparent;
@@ -197,6 +216,13 @@ QPushButton[toolbar="true"]:disabled {{
     background-color: transparent;
     color: {c.text_disabled};
     border-color: {c.border};
+    opacity: 0.35;
+}}
+QPushButton[toolbar="true"]:checked {{
+    background-color: {c.selected_bg};
+    color: {c.text};
+    border-color: {c.border_strong};
+    font-weight: 600;
 }}
 QPushButton[toolbar="true"][iconOnly="true"] {{
     padding: 0;
@@ -257,9 +283,9 @@ QStatusBar {{
 
 /* === QMenu === */
 QMenu {{
-    background-color: {c.surface};
+    background-color: {c.bg};
     color: {c.text};
-    border: 1px solid {c.border};
+    border: 1px solid {c.border_strong};
     border-radius: 6px;
     padding: 4px;
     font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
@@ -316,12 +342,18 @@ QComboBox::drop-down {{
     border-left: 1px solid {c.border};
 }}
 QComboBox QAbstractItemView {{
-    background-color: {c.surface};
+    background-color: {c.bg};
     color: {c.text};
-    selection-background-color: {c.accent_hover};
-    selection-color: {c.bg};
-    border: 1px solid {c.border};
+    selection-background-color: {c.selected_bg};
+    selection-color: {c.text};
+    border: 1px solid {c.border_strong};
     border-radius: 4px;
+    padding: 2px;
+}}
+QComboBox QAbstractItemView::item {{
+    padding: 4px 8px;
+    border-radius: 3px;
+    min-height: 24px;
 }}
 
 /* === QScrollArea / QScrollBar === */

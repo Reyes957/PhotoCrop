@@ -45,7 +45,7 @@ _ACCENT_HOVER = QColor("#333333")
 _ACCENT_FILL = QColor(0, 0, 0, 10)   # 选中填充 (4% opacity)
 _CANVAS_BG = QColor("#E8E8E8")
 _DASHED = QColor(102, 102, 102)       # 未选中虚线
-_TOOLBAR_BG = QColor(0, 0, 0, 160)    # 工具栏浮层背景
+_TOOLBAR_BG = QColor(0, 0, 0, 200)    # 工具栏浮层背景（提升对比度）
 
 
 def set_theme_colors(colors) -> None:
@@ -77,8 +77,8 @@ ROTATION_HANDLE_OFFSET = 28
 ROTATION_LINE_WIDTH = 1.0
 
 # 框线样式
-PEN_WIDTH_SELECTED = 2.0
-PEN_WIDTH_INACTIVE = 1.5
+PEN_WIDTH_SELECTED = 2.5
+PEN_WIDTH_INACTIVE = 2.0
 PEN_DASH_PATTERN = [6, 4]
 
 
@@ -155,8 +155,8 @@ class CropItem(QGraphicsRectItem):
     def boundingRect(self) -> QRectF:
         """扩展上边界以包含工具栏区域，确保鼠标事件可达"""
         r = super().boundingRect()
-        # 向上扩展 36px 以包含工具栏（y=-32 到 y=-4）和旋转手柄（y=-28）
-        return r.adjusted(-6, -36, 6, 6)
+        # 向上扩展 48px 以包含工具栏（28px 按钮 + 8px 间距 + 4px 圆角边距）和旋转手柄
+        return r.adjusted(-6, -48, 6, 6)
 
     def shape(self) -> QPainterPath:
         """扩展碰撞检测区域以包含工具栏"""
@@ -223,6 +223,11 @@ class CropItem(QGraphicsRectItem):
             self._paint_handles(painter, rect)
             self._paint_toolbar(painter, rect)
 
+        # 拖动时显示尺寸信息
+        if self._drag_handle not in (HandlePosition.NONE, HandlePosition.BODY,
+                                     HandlePosition.ROTATION):
+            self._paint_size_label(painter, rect)
+
         painter.restore()
 
     def _paint_handles(self, painter: QPainter, rect: QRectF) -> None:
@@ -280,10 +285,10 @@ class CropItem(QGraphicsRectItem):
 
     # ---- 工具栏 ----
 
-    TOOLBAR_BUTTON_SIZE = 20
-    TOOLBAR_GAP = 4
+    TOOLBAR_BUTTON_SIZE = 28
+    TOOLBAR_GAP = 3
     TOOLBAR_ICONS = ["eye", "x", "rotate-ccw", "rotate-cw", "copy"]  # view, delete, rotate CCW, rotate CW, copy
-    TOOLBAR_ICON_COLOR = "#F0F0F0"  # 始终浅色，浮层背景为深色
+    TOOLBAR_ICON_COLOR = "#FFFFFF"  # 纯白，最大化对比度
 
     def _toolbar_rects(self, rect: QRectF) -> list:
         """返回工具栏按钮的 QRectF（在裁剪框坐标系内）"""
@@ -291,7 +296,7 @@ class CropItem(QGraphicsRectItem):
         n = len(self.TOOLBAR_ICONS)
         total_w = btn_w * n + self.TOOLBAR_GAP * (n - 1)
         x_start = rect.center().x() - total_w / 2
-        y = rect.top() - 28  # 框上方 28px
+        y = rect.top() - 36  # 框上方 36px（更大的按钮需要更多空间）
 
         rects = []
         for i in range(n):
@@ -308,32 +313,59 @@ class CropItem(QGraphicsRectItem):
         total_w = self.TOOLBAR_BUTTON_SIZE * n + self.TOOLBAR_GAP * (n - 1)
         bg_rect = QRectF(
             rect.center().x() - total_w / 2 - 4,
-            rect.top() - 32,
+            rect.top() - 40,
             total_w + 8,
-            self.TOOLBAR_BUTTON_SIZE + 8,
+            self.TOOLBAR_BUTTON_SIZE + 12,
         )
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(_TOOLBAR_BG))
-        painter.drawRoundedRect(bg_rect, 4, 4)
+        painter.drawRoundedRect(bg_rect, 5, 5)
 
         # 按钮
         for _i, (btn_rect, icon_name) in enumerate(zip(btn_rects, self.TOOLBAR_ICONS)):
-            # 按钮背景
-            if btn_rect.contains(self._toolbar_hover_pos):
-                painter.setBrush(QBrush(QColor(255, 255, 255, 30)))
+            # 按钮 hover 高亮
+            if btn_rect.contains(getattr(self, '_last_hover_pos', QPointF())):
+                painter.setBrush(QBrush(QColor(255, 255, 255, 35)))
             else:
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(btn_rect, 3, 3)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(btn_rect, 4, 4)
 
-            # SVG 图标
+            # SVG 图标（5px padding → 18×18 可见区域）
             icon = get_icon(icon_name, self.TOOLBAR_ICON_COLOR)
-            icon_rect = btn_rect.adjusted(3, 3, -3, -3)
+            icon_rect = btn_rect.adjusted(5, 5, -5, -5)
             icon.paint(painter, icon_rect.toRect(), Qt.AlignmentFlag.AlignCenter)
 
-    @property
-    def _toolbar_hover_pos(self) -> QPointF:
-        """返回鼠标在裁剪框坐标系中的位置（用于工具栏高亮）"""
-        return getattr(self, '_last_hover_pos', QPointF())
+    def _paint_size_label(self, painter: QPainter, rect: QRectF) -> None:
+        """拖动缩放手柄时显示尺寸浮层"""
+        w = int(rect.width())
+        h = int(rect.height())
+        text = f"{w} × {h}"
+
+        font = painter.font()
+        font.setPointSize(10)
+        font.setWeight(font.Weight.Medium)
+        painter.setFont(font)
+
+        # 计算文本尺寸
+        metrics = painter.fontMetrics()
+        text_rect = metrics.boundingRect(text)
+        tw = text_rect.width() + 12
+        th = text_rect.height() + 6
+
+        # 位置：裁剪框底部中央下方
+        label_x = rect.center().x() - tw / 2
+        label_y = rect.bottom() + 6
+        label_rect = QRectF(label_x, label_y, tw, th)
+
+        # 背景
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(_TOOLBAR_BG))
+        painter.drawRoundedRect(label_rect, 4, 4)
+
+        # 文字
+        painter.setPen(QPen(QColor("#F0F0F0")))
+        painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, text)
 
     def _toolbar_button_at(self, pos: QPointF) -> int:
         """检测点击是否在工具栏按钮上，返回按钮索引（-1=无）"""

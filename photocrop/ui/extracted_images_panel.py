@@ -101,7 +101,7 @@ class ExtractedImagesPanel(QWidget):
         """构建 UI 结构"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 0, 10, 10)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
 
         self._header = QPushButton("EXTRACTED IMAGES  ▾")
         self._header.clicked.connect(self._toggle_collapse)
@@ -311,7 +311,10 @@ class ExtractedImagesPanel(QWidget):
         if pixmap is None and rect is not None and self._source_image is not None:
             pixmap = self._get_thumbnail(index, rect)
         if pixmap:
-            thumb_label.setPixmap(pixmap)
+            # 按宽高比缩放到 80x80 框内，避免拉伸变形
+            scaled = pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+                                   Qt.TransformationMode.SmoothTransformation)
+            thumb_label.setPixmap(scaled)
         else:
             thumb_label.setText("?")
             thumb_label.setStyleSheet(f"color: {c.text_secondary}; border-radius: 4px; background: {c.canvas_bg};")
@@ -330,11 +333,11 @@ class ExtractedImagesPanel(QWidget):
 
         if show_delete:
             btn_del = QPushButton()
-            btn_del.setFixedSize(16, 16)
+            btn_del.setFixedSize(20, 20)
             btn_del.setIcon(get_icon("x", c.text_secondary))
-            btn_del.setIconSize(QSize(10, 10))
+            btn_del.setIconSize(QSize(12, 12))
             btn_del.setStyleSheet(
-                f"QPushButton {{ background-color: transparent; border: none; padding: 0; }}"
+                f"QPushButton {{ background-color: transparent; border: none; padding: 0; border-radius: 3px; }}"
                 f"QPushButton:hover {{ background-color: {c.hover_bg}; }}"
             )
             btn_del.clicked.connect(lambda _, idx=index: self.crop_delete_requested.emit(idx))
@@ -347,7 +350,8 @@ class ExtractedImagesPanel(QWidget):
                             rect: CropRect) -> QPixmap | None:
         try:
             cropped = export_photo_to_memory(source_img, rect)
-            cropped.thumbnail((80, 80), Image.Resampling.LANCZOS)
+            # 生成更高分辨率缩略图（120px），显示时缩放到 80px，提升清晰度
+            cropped.thumbnail((120, 120), Image.Resampling.LANCZOS)
             pixmap = pil_to_pixmap(cropped)
             if len(self._cache) > 128:
                 self._cache.clear()
@@ -366,7 +370,8 @@ class ExtractedImagesPanel(QWidget):
 
         try:
             cropped = export_photo_to_memory(self._source_image, rect)
-            cropped.thumbnail((80, 80), Image.Resampling.LANCZOS)
+            # 生成更高分辨率缩略图（120px），显示时缩放到 80px，提升清晰度
+            cropped.thumbnail((120, 120), Image.Resampling.LANCZOS)
             pixmap = pil_to_pixmap(cropped)
             if len(self._cache) > 128:
                 self._cache.clear()

@@ -196,9 +196,9 @@ class MainWindow(QMainWindow):
 
         outer_layout.addWidget(body, 1)
 
-        # 底栏 28px
+        # 底栏 36px
         self._bottom_bar = QWidget()
-        self._bottom_bar.setFixedHeight(28)
+        self._bottom_bar.setFixedHeight(36)
         self._bottom_bar.setObjectName("bottomBar")
         self._build_bottom_bar(self._bottom_bar)
         outer_layout.addWidget(self._bottom_bar)
@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
     def _build_toolbar(self, parent: QWidget) -> None:
         layout = QHBoxLayout(parent)
         layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self._brand_icon = BrandIcon(size=20)
@@ -235,7 +235,7 @@ class MainWindow(QMainWindow):
         for label, _ in DETECTOR_OPTIONS:
             self._combo_detector.addItem(label)
         self._combo_detector.setCurrentIndex(0)
-        self._combo_detector.setFixedWidth(110)
+        self._combo_detector.setFixedWidth(120)
         self._combo_detector.setFixedHeight(28)
         self._combo_detector.setToolTip("选择检测算法")
         layout.addWidget(self._combo_detector)
@@ -245,11 +245,14 @@ class MainWindow(QMainWindow):
         self._btn_detect.setEnabled(False)
         layout.addWidget(self._btn_detect)
 
+        # Max 数量紧挨 Detect，间距 2px 视觉分组
+        layout.addSpacing(-4)
         self._spin_max_count = QSpinBox()
         self._spin_max_count.setRange(1, 10)
         self._spin_max_count.setValue(4)
-        self._spin_max_count.setFixedWidth(52)
+        self._spin_max_count.setFixedWidth(62)
         self._spin_max_count.setFixedHeight(28)
+        self._spin_max_count.setPrefix("Max ")
         self._spin_max_count.setToolTip("最大检测数量")
         layout.addWidget(self._spin_max_count)
 
@@ -272,8 +275,8 @@ class MainWindow(QMainWindow):
         self._btn_redo.setProperty("toolbar", "true")
         layout.addWidget(self._btn_redo)
 
-        # 居中 Page Nav
-        layout.addStretch()
+        # 弹性空间 + 居中 Page Nav
+        layout.addStretch(1)
         self._page_nav_widget = QWidget()
         pn_layout = QHBoxLayout(self._page_nav_widget)
         pn_layout.setContentsMargins(0, 0, 0, 0)
@@ -300,7 +303,7 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self._page_nav_widget)
         self._page_nav_widget.setVisible(False)
-        layout.addStretch()
+        layout.addStretch(1)
 
         # 右侧按钮
         self._btn_grid = QPushButton("Grid")
@@ -332,7 +335,7 @@ class MainWindow(QMainWindow):
         page.setObjectName("emptyState")
         v = QVBoxLayout(page)
         v.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        v.setSpacing(20)
+        v.setSpacing(16)
 
         icon = BrandIcon(size=48, opacity=0.25)
         v.addWidget(icon, 0, Qt.AlignmentFlag.AlignCenter)
@@ -354,44 +357,51 @@ class MainWindow(QMainWindow):
         self._empty_hint = QLabel("拖入图片或点击 + Import 开始")
         self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         v.addWidget(self._empty_hint)
+
+        # 垂直居中偏移补偿：在顶部加弹性空间使内容视觉居中
+        v.insertStretch(0, 1)
+        v.addStretch(1)
         return page
 
     def _build_bottom_bar(self, parent: QWidget) -> None:
         layout = QHBoxLayout(parent)
         layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         self._lbl_bottom_status = QLabel("Ready")
         layout.addWidget(self._lbl_bottom_status)
         layout.addStretch()
 
+        # 分隔线：状态信息 | 缩放控件
+        self._zoom_sep = QWidget()
+        self._zoom_sep.setFixedSize(1, 16)
+        self._zoom_sep.setObjectName("toolbarSep")
+        layout.addWidget(self._zoom_sep)
+        layout.addSpacing(8)
+
         self._lbl_zoom = QLabel("Zoom: 100%")
         layout.addWidget(self._lbl_zoom)
+        layout.addSpacing(4)
 
         btn_zoom_in = QPushButton("+")
-        btn_zoom_in.setFixedSize(24, 20)
-        btn_zoom_in.setProperty("toolbar", "true")
+        btn_zoom_in.setFixedSize(28, 22)
         btn_zoom_in.clicked.connect(self._on_zoom_in)
         layout.addWidget(btn_zoom_in)
 
         btn_zoom_out = QPushButton("−")
-        btn_zoom_out.setFixedSize(24, 20)
-        btn_zoom_out.setProperty("toolbar", "true")
+        btn_zoom_out.setFixedSize(28, 22)
         btn_zoom_out.clicked.connect(self._on_zoom_out)
         layout.addWidget(btn_zoom_out)
 
-        self._lbl_pipe = QLabel("|")
-        layout.addWidget(self._lbl_pipe)
+        layout.addSpacing(4)
 
         btn_fit = QPushButton("Fit")
-        btn_fit.setFixedSize(36, 20)
-        btn_fit.setProperty("toolbar", "true")
+        btn_fit.setFixedSize(50, 22)
         btn_fit.clicked.connect(self._on_zoom_fit)
         layout.addWidget(btn_fit)
 
         btn_1to1 = QPushButton("1:1")
-        btn_1to1.setFixedSize(36, 20)
-        btn_1to1.setProperty("toolbar", "true")
+        btn_1to1.setFixedSize(50, 22)
         btn_1to1.clicked.connect(self._on_zoom_1to1)
         layout.addWidget(btn_1to1)
 
@@ -489,7 +499,7 @@ class MainWindow(QMainWindow):
             f"letter-spacing: 0.25em; color: {c.text_secondary};"
         )
         self._empty_hint.setStyleSheet(
-            f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_disabled};"
+            f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
         )
         self._lbl_bottom_status.setStyleSheet(
             f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
@@ -497,7 +507,6 @@ class MainWindow(QMainWindow):
         self._lbl_zoom.setStyleSheet(
             f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
         )
-        self._lbl_pipe.setStyleSheet(f"color: {c.border_strong}; font-size: 11px;")
 
         for w in self._toolbar.findChildren(QWidget):
             if w.objectName() == "toolbarSep":
