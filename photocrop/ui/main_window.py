@@ -43,7 +43,7 @@ from photocrop.ui.controllers.view_coordinator import ViewCoordinator
 from photocrop.ui.crop_options_panel import CropOptionsPanel
 from photocrop.ui.export_dialog import ExportDialog
 from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
-from photocrop.ui.icons import get_icon
+from photocrop.ui.icons import get_colored_svg_path, get_icon
 from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.single_view_panel import SingleViewPanel
 from photocrop.ui.state import AppState, SessionState
@@ -246,11 +246,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_detect)
 
         # Max 数量紧挨 Detect，间距 2px 视觉分组
-        layout.addSpacing(-4)
         self._spin_max_count = QSpinBox()
         self._spin_max_count.setRange(1, 10)
         self._spin_max_count.setValue(4)
-        self._spin_max_count.setFixedWidth(62)
+        self._spin_max_count.setFixedWidth(76)
         self._spin_max_count.setFixedHeight(28)
         self._spin_max_count.setPrefix("Max ")
         self._spin_max_count.setToolTip("最大检测数量")
@@ -431,6 +430,7 @@ class MainWindow(QMainWindow):
         self._canvas.selection_changed.connect(self._on_selection_changed)
         self._canvas.view_single_requested.connect(self._on_view_single_requested)
         self._canvas.zoom_changed.connect(self._update_zoom_label)
+        self._canvas.crop_rotating.connect(self._on_crop_rotating)
 
         # 右面板信号
         self._crop_options_panel.rect_changed.connect(self._on_crop_options_changed)
@@ -525,6 +525,20 @@ class MainWindow(QMainWindow):
         self._btn_next_page.setIcon(get_icon("chevron-right", icon_color))
         self._lbl_page_info.setStyleSheet(
             f"color: {c.text_secondary}; font-family: {FONT_BODY}; font-size: 13px;"
+        )
+
+        # ComboBox 下拉箭头 SVG 图标
+        arrow_color = c.text_secondary if theme.mode == "light" else c.text
+        arrow_path = get_colored_svg_path("chevron-down", arrow_color)
+        if arrow_path:
+            self._combo_detector.setStyleSheet(
+                f"QComboBox::down-arrow {{ image: url('{arrow_path}'); "
+                f"width: 14px; height: 14px; }}"
+            )
+
+        # SpinBox / ComboBox 与工具栏按钮底部对齐
+        self._spin_max_count.setStyleSheet(
+            "QSpinBox { padding: 4px 6px; min-height: 22px; }"
         )
 
     def _on_theme_changed(self, _colors: object) -> None:
@@ -797,6 +811,10 @@ class MainWindow(QMainWindow):
         img_size = (self._canvas.source_image.size
                     if self._canvas.source_image else (0, 0))
         self._crop_options_panel.set_selected_rect(rect, img_size)
+
+    def _on_crop_rotating(self, angle: float) -> None:
+        """旋转中实时更新右面板角度值"""
+        self._crop_options_panel.update_rotation(angle)
 
     def _on_crop_options_changed(self) -> None:
         for item in self._canvas.selected_items:

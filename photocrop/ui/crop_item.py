@@ -73,7 +73,7 @@ def _parse_rgba(rgba_str: str) -> QColor:
 # 手柄尺寸
 HANDLE_SIZE = 8
 HANDLE_HOVER_SIZE = 10
-ROTATION_HANDLE_OFFSET = 28
+ROTATION_HANDLE_OFFSET = 28   # 旋转手柄在裁剪框上方 28px（原始位置）
 ROTATION_LINE_WIDTH = 1.0
 
 # 框线样式
@@ -127,6 +127,7 @@ class CropItem(QGraphicsRectItem):
         self._on_copy: Callable | None = None          # 复制此框
         self._on_rotate_left: Callable | None = None   # 逆时针 90°
         self._on_rotate_right: Callable | None = None  # 顺时针 90°
+        self._on_rotating: Callable | None = None      # 旋转中实时回调（轻量）
 
         # 交互设置
         self.setAcceptHoverEvents(True)
@@ -143,7 +144,8 @@ class CropItem(QGraphicsRectItem):
                       on_view_single: Callable | None = None,
                       on_copy: Callable | None = None,
                       on_rotate_left: Callable | None = None,
-                      on_rotate_right: Callable | None = None) -> None:
+                      on_rotate_right: Callable | None = None,
+                      on_rotating: Callable | None = None) -> None:
         """设置回调函数"""
         self._on_changed = on_changed
         self._on_deleted = on_deleted
@@ -151,17 +153,28 @@ class CropItem(QGraphicsRectItem):
         self._on_copy = on_copy
         self._on_rotate_left = on_rotate_left
         self._on_rotate_right = on_rotate_right
+        self._on_rotating = on_rotating
 
     def boundingRect(self) -> QRectF:
-        """扩展上边界以包含工具栏区域，确保鼠标事件可达"""
+        """扩展边界以包含旋转手柄（上方）和工具栏（右上方），确保鼠标事件可达"""
         r = super().boundingRect()
-        # 向上扩展 48px 以包含工具栏（28px 按钮 + 8px 间距 + 4px 圆角边距）和旋转手柄
-        return r.adjusted(-6, -48, 6, 6)
+        # 上方：旋转手柄(-28) + 手柄半径(4) + 间距(6) = -38
+        # 右方：工具栏 (5×30 + 4×4 + 10 padding) ≈ 186px
+        return r.adjusted(-6, -48, 190, 6)
 
     def shape(self) -> QPainterPath:
-        """扩展碰撞检测区域以包含工具栏"""
+        """精确碰撞检测：裁剪框 + 旋转手柄 + 工具栏"""
         path = QPainterPath()
-        path.addRect(self.boundingRect())
+        # 裁剪框本体
+        path.addRect(self.rect())
+        # 旋转手柄区域
+        rot_pos = QPointF(
+            self.rect().center().x(),
+            self.rect().top() - ROTATION_HANDLE_OFFSET,
+        )
+        path.addEllipse(rot_pos, 12, 12)
+        # 工具栏区域
+        path.addRect(self._toolbar_bg_rect(self.rect()))
         return path
 
     @property
@@ -258,7 +271,7 @@ class CropItem(QGraphicsRectItem):
             rect.top() - ROTATION_HANDLE_OFFSET,
         )
 
-        # 连接线
+        # 连接线：从裁剪框顶边到旋转手柄
         painter.setPen(QPen(_ACCENT, ROTATION_LINE_WIDTH, Qt.PenStyle.DashLine))
         painter.drawLine(
             QPointF(rect.center().x(), rect.top()),
@@ -283,20 +296,31 @@ class CropItem(QGraphicsRectItem):
             text_pos = QPointF(rotation_pos.x() + 12, rotation_pos.y() - 4)
             painter.drawText(text_pos, angle_text)
 
-    # ---- 工具栏 ----
+    # ---- 工具栏（右上角） ----
 
-    TOOLBAR_BUTTON_SIZE = 28
-    TOOLBAR_GAP = 3
+    TOOLBAR_BUTTON_SIZE = 30
+    TOOLBAR_GAP = 4
     TOOLBAR_ICONS = ["eye", "x", "rotate-ccw", "rotate-cw", "copy"]  # view, delete, rotate CCW, rotate CW, copy
     TOOLBAR_ICON_COLOR = "#FFFFFF"  # 纯白，最大化对比度
 
+    def _toolbar_bg_rect(self, rect: QRectF) -> QRectF:
+        """工具栏背景矩形（裁剪框右上角外侧）"""
+        n = len(self.TOOLBAR_ICONS)
+        total_w = self.TOOLBAR_BUTTON_SIZE * n + self.TOOLBAR_GAP * (n - 1)
+        btn_h = self.TOOLBAR_BUTTON_SIZE
+        return QRectF(
+            rect.right() + 8,                    # 裁剪框右侧 8px
+            rect.top() - btn_h // 2 - 5,         # 垂直居中对齐顶边
+            total_w + 10,                         # 宽度 + 内边距
+            btn_h + 10,                           # 高度 + 内边距
+        )
+
     def _toolbar_rects(self, rect: QRectF) -> list:
-        """返回工具栏按钮的 QRectF（在裁剪框坐标系内）"""
+        """返回工具栏按钮的 QRectF（裁剪框右上角外侧）"""
         btn_w = self.TOOLBAR_BUTTON_SIZE
         n = len(self.TOOLBAR_ICONS)
-        total_w = btn_w * n + self.TOOLBAR_GAP * (n - 1)
-        x_start = rect.center().x() - total_w / 2
-        y = rect.top() - 36  # 框上方 36px（更大的按钮需要更多空间）
+        x_start = rect.right() + 13             # 背景左边距 5px + 8px 间距
+        y = rect.top() - btn_w // 2             # 垂直居中对齐顶边
 
         rects = []
         for i in range(n):
@@ -305,21 +329,14 @@ class CropItem(QGraphicsRectItem):
         return rects
 
     def _paint_toolbar(self, painter: QPainter, rect: QRectF) -> None:
-        """绘制裁剪框上方的工具栏"""
+        """绘制裁剪框右上角的工具栏"""
         btn_rects = self._toolbar_rects(rect)
 
         # 背景
-        n = len(self.TOOLBAR_ICONS)
-        total_w = self.TOOLBAR_BUTTON_SIZE * n + self.TOOLBAR_GAP * (n - 1)
-        bg_rect = QRectF(
-            rect.center().x() - total_w / 2 - 4,
-            rect.top() - 40,
-            total_w + 8,
-            self.TOOLBAR_BUTTON_SIZE + 12,
-        )
+        bg_rect = self._toolbar_bg_rect(rect)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(_TOOLBAR_BG))
-        painter.drawRoundedRect(bg_rect, 5, 5)
+        painter.drawRoundedRect(bg_rect, 6, 6)
 
         # 按钮
         for _i, (btn_rect, icon_name) in enumerate(zip(btn_rects, self.TOOLBAR_ICONS)):
@@ -331,7 +348,7 @@ class CropItem(QGraphicsRectItem):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(btn_rect, 4, 4)
 
-            # SVG 图标（5px padding → 18×18 可见区域）
+            # SVG 图标（5px padding → 20×20 可见区域）
             icon = get_icon(icon_name, self.TOOLBAR_ICON_COLOR)
             icon_rect = btn_rect.adjusted(5, 5, -5, -5)
             icon.paint(painter, icon_rect.toRect(), Qt.AlignmentFlag.AlignCenter)
@@ -384,9 +401,9 @@ class CropItem(QGraphicsRectItem):
         rect = self.rect()
         hs = HANDLE_SIZE * 1.5  # 检测区域略大
 
-        # 旋转手柄
+        # 旋转手柄（检测区域更大，方便点击）
         rotation_pos = QPointF(rect.center().x(), rect.top() - ROTATION_HANDLE_OFFSET)
-        if (pos - rotation_pos).manhattanLength() < hs:
+        if (pos - rotation_pos).manhattanLength() < hs * 2:
             return HandlePosition.ROTATION
 
         # 四角
@@ -509,14 +526,12 @@ class CropItem(QGraphicsRectItem):
             dy = mouse.y() - center.y()
 
             # atan2 返回弧度，转换为角度
-            # 注意：Qt 坐标系 y 轴向下，所以角度方向与数学坐标系相反
-            angle_rad = math.atan2(-dy, dx)  # 负 dy 因为 y 轴向下
+            # Qt 坐标系 y 轴向下，atan2(-dy,dx) 得到标准数学角度
+            angle_rad = math.atan2(-dy, dx)
             angle_deg = math.degrees(angle_rad)
 
-            # 转换为"从 12 点钟方向顺时针"的角度
-            # atan2 的 0° 在 3 点钟方向，顺时针为正
-            # 我们要的是从 12 点钟方向顺时针
-            rotation = normalize_angle(90.0 - angle_deg)
+            # 从 12 点钟方向顺时针：鼠标在正上方=0°，左侧=正值（逆时针）
+            rotation = normalize_angle(angle_deg - 90.0)
 
             # 吸附到 0°, 90°, -90°, 180°（容差 ±15°）
             snap_angles = [0.0, 90.0, -90.0, 180.0]
@@ -526,7 +541,10 @@ class CropItem(QGraphicsRectItem):
                     break
 
             self._crop_rect.rotation_angle = rotation
-            self.update()  # 触发重绘，但不触发 _on_changed 信号风暴
+            self.update()
+            # 轻量实时回调（仅更新属性面板，不触发完整刷新）
+            if self._on_rotating:
+                self._on_rotating(rotation)
             event.accept()
             return
         else:
@@ -575,6 +593,7 @@ class CropItem(QGraphicsRectItem):
         if self._drag_handle != HandlePosition.NONE and self._on_changed:
             self._on_changed()
         self._drag_handle = HandlePosition.NONE
+        self.update()  # 确保最终状态重绘（工具栏、手柄等）
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event) -> None:

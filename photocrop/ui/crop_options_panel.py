@@ -262,6 +262,14 @@ class CropOptionsPanel(QWidget):
         self._spin_rotation.setValue(rect.rotation_angle)
         self._block_signals = False
 
+    def update_rotation(self, angle: float) -> None:
+        """旋转中轻量更新角度值（不触发 valueChanged 信号）"""
+        if self._current_rect is None:
+            return
+        self._block_signals = True
+        self._spin_rotation.setValue(angle)
+        self._block_signals = False
+
     def _on_value_changed(self) -> None:
         if self._block_signals or self._current_rect is None:
             return

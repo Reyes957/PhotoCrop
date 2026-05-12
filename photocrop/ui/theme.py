@@ -303,7 +303,7 @@ QMenu::item:selected {{
 QSpinBox, QDoubleSpinBox {{
     border: 1px solid {c.border};
     border-radius: 6px;
-    padding: 3px 6px;
+    padding: 4px 6px;
     font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
     background: {c.surface};
@@ -315,7 +315,7 @@ QSpinBox:focus, QDoubleSpinBox:focus {{
 }}
 QSpinBox::up-button, QSpinBox::down-button,
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
-    width: 14px;
+    width: 0px;
     border: none;
     background: transparent;
 }}
@@ -324,7 +324,7 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
 QComboBox {{
     border: 1px solid {c.border};
     border-radius: 6px;
-    padding: 3px 28px 3px 6px;
+    padding: 3px 28px 3px 10px;
     font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
     font-size: 12px;
     background: {c.surface};
@@ -337,23 +337,35 @@ QComboBox:hover {{
 QComboBox::drop-down {{
     subcontrol-origin: padding;
     subcontrol-position: top right;
-    width: 22px;
+    width: 24px;
     border: none;
     border-left: 1px solid {c.border};
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
 }}
 QComboBox QAbstractItemView {{
-    background-color: {c.bg};
+    background-color: {c.surface};
     color: {c.text};
     selection-background-color: {c.selected_bg};
     selection-color: {c.text};
     border: 1px solid {c.border_strong};
-    border-radius: 4px;
-    padding: 2px;
+    border-radius: 6px;
+    padding: 4px;
+    outline: none;
 }}
 QComboBox QAbstractItemView::item {{
-    padding: 4px 8px;
-    border-radius: 3px;
-    min-height: 24px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    min-height: 28px;
+    border: none;
+}}
+QComboBox QAbstractItemView::item:selected {{
+    background-color: {c.selected_bg};
+    color: {c.text};
+}}
+QComboBox QAbstractItemView::item:hover {{
+    background-color: {c.hover_bg};
+    color: {c.text};
 }}
 
 /* === QScrollArea / QScrollBar === */

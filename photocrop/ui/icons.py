@@ -61,3 +61,28 @@ def get_icon(name: str, color: str) -> QIcon:
 def clear_cache() -> None:
     """清空图标缓存（主题切换时调用）。"""
     _cache.clear()
+
+
+def get_colored_svg_path(name: str, color: str) -> str:
+    """生成带颜色的 SVG 文件，返回文件路径供 QSS 的 image: url() 使用。
+
+    Args:
+        name: 图标名（不含扩展名），如 "chevron-down"
+        color: CSS 颜色字符串，如 "#F0F0F0"
+
+    Returns:
+        SVG 文件的绝对路径，或空字符串（文件不存在时）
+    """
+    svg_path = _ICON_DIR / f"{name}.svg"
+    if not svg_path.exists():
+        return ""
+
+    svg_data = svg_path.read_text()
+    svg_data = svg_data.replace("currentColor", color)
+
+    cache_dir = _ICON_DIR / ".cache"
+    cache_dir.mkdir(exist_ok=True)
+    safe_color = color.replace("#", "").replace("(", "").replace(")", "").replace(",", "").replace(" ", "")
+    out_path = cache_dir / f"{name}_{safe_color}.svg"
+    out_path.write_text(svg_data)
+    return str(out_path)

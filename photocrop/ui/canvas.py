@@ -50,6 +50,7 @@ class CropCanvas(QGraphicsView):
     selection_changed = Signal()      # 选中的裁剪框变化
     view_single_requested = Signal(int)  # 请求切换到 Single View，参数为裁剪框索引
     zoom_changed = Signal()           # 缩放比例变化（滚轮/按钮）
+    crop_rotating = Signal(float)     # 旋转中实时角度（轻量，仅更新属性面板）
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -289,6 +290,7 @@ class CropCanvas(QGraphicsView):
             on_copy=lambda it=item: self._on_crop_copy(it),
             on_rotate_left=lambda it=item: self._on_crop_rotate_left(it),
             on_rotate_right=lambda it=item: self._on_crop_rotate_right(it),
+            on_rotating=self._on_crop_rotating,
         )
         self._scene.addItem(item)
         self._crop_items.append(item)
@@ -338,6 +340,12 @@ class CropCanvas(QGraphicsView):
     def _on_crop_changed(self) -> None:
         self._push_undo_state()
         self.rects_changed.emit()
+        # 旋转/缩放后确保裁剪框在视野内
+        self.centerOn(self._scene.sceneRect().center())
+
+    def _on_crop_rotating(self, angle: float) -> None:
+        """旋转中轻量回调 — 仅更新属性面板角度，不触发完整刷新"""
+        self.crop_rotating.emit(angle)
 
     def _on_crop_deleted(self, item: CropItem) -> None:
         """裁剪框被删除时的回调（由 CropItem 的 keyPressEvent 触发）"""
