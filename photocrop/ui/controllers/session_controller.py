@@ -21,7 +21,7 @@ from PySide6.QtCore import QObject, Signal
 from photocrop.ui.state import AppState, SessionState
 
 if TYPE_CHECKING:
-    pass
+    from photocrop.ui.canvas import CropCanvas
 
 
 class SessionController(QObject):
@@ -157,18 +157,16 @@ class SessionController(QObject):
             sess.crop_rects = [copy.deepcopy(r) for r in canvas_crop_rects]
             sess.undo_snapshot = undo_snapshot
 
-    def restore_session(self, key: str, canvas: object, undo_manager: object) -> bool:
+    def restore_session(self, key: str, canvas: CropCanvas) -> bool:
         """恢复指定 Session 到 Canvas 中
 
         Args:
             key: Session key（图片路径或 PDF 页面 key，如 "file.pdf##PAGE##0"）
-            canvas: CropCanvas 实例（需要 load_pil_image / _restore_rects 方法）
-            undo_manager: UndoManager 实例（需要 deserialize / clear / push_state 方法）
+            canvas: CropCanvas 实例
 
         Returns:
             是否成功恢复
         """
-        # 解析是否是 PDF 页面 key
         parsed = self._state.parse_page_key(key)
 
         if parsed:
@@ -177,19 +175,17 @@ class SessionController(QObject):
             if not sess or not sess.is_pdf:
                 return False
 
-            # 切换页面
             sess.current_page = page_idx
             img = sess.pdf_page_loader(page_idx) if sess.pdf_page_loader else sess.source_image
             page_rects = list(sess.page_crop_rects.get(page_idx, []))
             page_undo = sess.page_undo_snapshots.get(page_idx)
 
             canvas.load_pil_image(img)
-            canvas._restore_rects(page_rects)
+            canvas.restore_rects_from_list(page_rects)
             if page_undo is not None:
-                undo_manager.deserialize(page_undo)
+                canvas.restore_undo_snapshot(page_undo)
             else:
-                undo_manager.clear()
-                undo_manager.push_state([])
+                canvas.reset_undo()
 
             self._state.set_current(key)
             self.page_switched.emit(pdf_key, page_idx)
@@ -201,8 +197,8 @@ class SessionController(QObject):
             return False
 
         canvas.load_pil_image(sess.source_image)
-        undo_manager.deserialize(sess.undo_snapshot)
-        canvas._restore_rects(list(sess.crop_rects))
+        canvas.restore_undo_snapshot(sess.undo_snapshot)
+        canvas.restore_rects_from_list(list(sess.crop_rects))
 
         self._state.set_current(key)
         return True
@@ -212,7 +208,7 @@ class SessionController(QObject):
     # ================================================================
 
     def switch_page(self, session_key: str, page_idx: int,
-                    canvas: object, undo_manager: object) -> Image.Image | None:
+                    canvas: CropCanvas) -> Image.Image | None:
         """在同一 PDF Session 内切换页面
 
         先保存当前页面状态，再加载目标页面。
@@ -226,7 +222,7 @@ class SessionController(QObject):
         # 保存当前页面
         current_page = sess.current_page
         sess.page_crop_rects[current_page] = [copy.deepcopy(r) for r in canvas.crop_rects]
-        sess.page_undo_snapshots[current_page] = undo_manager.serialize()
+        sess.page_undo_snapshots[current_page] = canvas.get_undo_snapshot()
 
         # 加载目标页面
         sess.current_page = page_idx
@@ -235,12 +231,11 @@ class SessionController(QObject):
         page_undo = sess.page_undo_snapshots.get(page_idx)
 
         canvas.load_pil_image(img)
-        canvas._restore_rects(page_rects)
+        canvas.restore_rects_from_list(page_rects)
         if page_undo is not None:
-            undo_manager.deserialize(page_undo)
+            canvas.restore_undo_snapshot(page_undo)
         else:
-            undo_manager.clear()
-            undo_manager.push_state([])
+            canvas.reset_undo()
 
         new_key = self._state.get_page_key(session_key, page_idx)
         self._state.set_current(new_key)

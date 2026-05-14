@@ -28,10 +28,9 @@ from PySide6.QtWidgets import (
 
 from photocrop.export.cropper import export_photo_to_memory
 from photocrop.ui.icons import get_icon
+from photocrop.ui.theme import FONT_FAMILY
 from photocrop.ui.utils import pil_to_pixmap, pil_to_qimage
 from photocrop.utils.crop_rect import CropRect
-
-FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass
@@ -92,8 +91,9 @@ class SingleViewPanel(QWidget):
         self._overview_view.setStyleSheet("border: none;")
         left_layout.addWidget(self._overview_view, 1)
 
-        self._btn_exit = QPushButton("返回 Grid View")
+        self._btn_exit = QPushButton("Return to Grid View")
         self._btn_exit.setProperty("secondary", "true")
+        self._btn_exit.setToolTip("Return to Grid View")
         self._btn_exit.clicked.connect(self.exit_requested.emit)
         left_layout.addWidget(self._btn_exit)
 
@@ -107,7 +107,7 @@ class SingleViewPanel(QWidget):
 
         self._preview_label = QLabel()
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setText("选择一个裁剪框")
+        self._preview_label.setText("Select a crop to view")
         right_layout.addWidget(self._preview_label, 1)
 
         # 底部导航
@@ -119,6 +119,7 @@ class SingleViewPanel(QWidget):
         self._btn_prev = QPushButton()
         self._btn_prev.setFixedSize(28, 28)
         self._btn_prev.setIconSize(QSize(14, 14))
+        self._btn_prev.setToolTip("Previous crop")
         self._btn_prev.clicked.connect(self._go_prev)
         nav_layout.addWidget(self._btn_prev)
 
@@ -129,6 +130,7 @@ class SingleViewPanel(QWidget):
         self._btn_next = QPushButton()
         self._btn_next.setFixedSize(28, 28)
         self._btn_next.setIconSize(QSize(14, 14))
+        self._btn_next.setToolTip("Next crop")
         self._btn_next.clicked.connect(self._go_next)
         nav_layout.addWidget(self._btn_next)
 
@@ -256,7 +258,7 @@ class SingleViewPanel(QWidget):
 
     def _update_preview(self) -> None:
         if not self._crop_rects or self._source_image is None:
-            self._preview_label.setText("选择一个裁剪框")
+            self._preview_label.setText("Select a crop to view")
             self._preview_label.setPixmap(QPixmap())
             return
 

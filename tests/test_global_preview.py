@@ -2,7 +2,7 @@
 测试全局预览模式（跨页预览）
 
 覆盖：
-- ImageSession 预览缓存
+- SessionState 预览缓存
 - ExtractedImagesPanel 全局模式索引映射
 - MainWindow 辅助方法逻辑
 """
@@ -24,17 +24,17 @@ for mod in [
     sys.modules.setdefault(mod, _pyside6_mock)
 
 from photocrop.ui.extracted_images_panel import PageCropRef  # noqa: E402
-from photocrop.ui.session import ImageSession  # noqa: E402
+from photocrop.ui.state import SessionState  # noqa: E402
 from photocrop.utils.crop_rect import CropRect  # noqa: E402
 
 # ============================================================
-# ImageSession 预览缓存
+# SessionState 预览缓存
 # ============================================================
 
-class TestImageSessionPreviewCache:
-    """测试 ImageSession 的预览缓存功能"""
+class TestSessionStatePreviewCache:
+    """测试 SessionState 的预览缓存功能"""
 
-    def _make_session(self, page_count: int = 5) -> ImageSession:
+    def _make_session(self, page_count: int = 5) -> SessionState:
         img = Image.new("RGB", (1000, 1400), "white")
         pages = [(i, Image.new("RGB", (612, 792), "white")) for i in range(page_count)]
 
@@ -43,11 +43,12 @@ class TestImageSessionPreviewCache:
                 return pages[idx][1]
             raise IndexError(f"Page {idx} out of range")
 
-        return ImageSession(
+        return SessionState(
+            key="/tmp/test.pdf",
             source_path=Path("/tmp/test.pdf"),
             source_image=img,
             is_pdf=True,
-            pdf_page_count=page_count,
+            page_count=page_count,
             pdf_page_loader=loader,
         )
 
@@ -217,11 +218,12 @@ class TestMainWindowHelpers:
 
     def test_refresh_uses_preview_cache(self) -> None:
         """预览缓存命中时不调用 get_page_image"""
-        sess = ImageSession(
+        sess = SessionState(
+            key="/tmp/test.pdf",
             source_path=Path("/tmp/test.pdf"),
             source_image=Image.new("RGB", (1000, 1400), "white"),
             is_pdf=True,
-            pdf_page_count=3,
+            page_count=3,
         )
         for i in range(3):
             sess.set_page_preview(i, Image.new("RGB", (612, 792), "white"))
@@ -236,11 +238,12 @@ class TestMainWindowHelpers:
 
     def test_refresh_cache_miss_fallback(self) -> None:
         """缓存未命中时 fallback 到 get_page_image"""
-        sess = ImageSession(
+        sess = SessionState(
+            key="/tmp/test.pdf",
             source_path=Path("/tmp/test.pdf"),
             source_image=Image.new("RGB", (1000, 1400), "white"),
             is_pdf=True,
-            pdf_page_count=2,
+            page_count=2,
             pdf_page_loader=lambda idx: Image.new("RGB", (612, 792), "white"),
         )
 
@@ -269,11 +272,12 @@ class TestGlobalPreviewIntegration:
         page_count = 4
         pages = [(i, Image.new("RGB", (612, 792), "white")) for i in range(page_count)]
 
-        sess = ImageSession(
+        sess = SessionState(
+            key="/tmp/album.pdf",
             source_path=Path("/tmp/album.pdf"),
             source_image=pages[0][1],
             is_pdf=True,
-            pdf_page_count=page_count,
+            page_count=page_count,
             pdf_page_loader=lambda idx: pages[idx][1],
         )
 
@@ -317,11 +321,12 @@ class TestGlobalPreviewIntegration:
 
     def test_edit_then_refresh_preserves_other_pages(self) -> None:
         """编辑当前页后刷新，其他页数据不变"""
-        sess = ImageSession(
+        sess = SessionState(
+            key="/tmp/test.pdf",
             source_path=Path("/tmp/test.pdf"),
             source_image=Image.new("RGB", (1000, 1400), "white"),
             is_pdf=True,
-            pdf_page_count=3,
+            page_count=3,
         )
         for i in range(3):
             sess.set_page_preview(i, Image.new("RGB", (612, 792), "white"))
@@ -354,11 +359,12 @@ class TestGlobalPreviewIntegration:
 
     def test_cross_page_delete(self) -> None:
         """跨页删除：索引映射 → 切页 → 删除"""
-        sess = ImageSession(
+        sess = SessionState(
+            key="/tmp/test.pdf",
             source_path=Path("/tmp/test.pdf"),
             source_image=Image.new("RGB", (1000, 1400), "white"),
             is_pdf=True,
-            pdf_page_count=2,
+            page_count=2,
         )
         sess.page_crop_rects[0] = [
             CropRect(10, 10, 50, 50),
@@ -389,7 +395,8 @@ class TestGlobalPreviewIntegration:
 
     def test_single_image_mode_not_affected(self) -> None:
         """单图模式不触发全局逻辑"""
-        sess = ImageSession(
+        sess = SessionState(
+            key="/tmp/photo.jpg",
             source_path=Path("/tmp/photo.jpg"),
             source_image=Image.new("RGB", (800, 600), "white"),
         )

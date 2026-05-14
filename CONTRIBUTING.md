@@ -42,6 +42,11 @@ pytest tests/ -v
 
 # 运行特定测试
 pytest tests/test_engine.py::TestCropRect -v
+
+# 运行特定模块
+pytest tests/test_state.py -v
+pytest tests/test_export_controller.py -v
+pytest tests/test_session_controller.py -v
 ```
 
 ## 提交规范
@@ -61,12 +66,18 @@ test: 添加 CombinedDetector 投票融合测试
 ```
 photocrop/
 ├── engine/     # 检测引擎（ABC + 工厂模式）
-├── ui/         # PySide6 GUI（Apple 设计风格）
+├── ui/         # PySide6 GUI（黑白极简设计）
+│   ├── controllers/  # 业务逻辑控制器层（与 Qt 控件解耦）
+│   ├── state.py      # AppState 全局状态管理器
+│   ├── theme.py      # ThemeManager 单例（Light/Dark + 过渡动画）
+│   └── ...           # 各 UI 面板和组件
 ├── export/     # 裁剪 + 导出
 └── utils/      # 工具函数
 ```
 
 新增检测器只需继承 `BaseDetector` 并实现 `detect()` 方法，然后在 `engine/core.py` 的 `get_detector()` 工厂中注册。
+
+新增控制器只需继承 `QObject`，通过 `AppState` 订阅状态变化，在 `main_window.py` 中实例化并连接信号。
 
 ## 报告问题
 

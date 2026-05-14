@@ -1,10 +1,11 @@
 """
 Theme — 全局主题管理（Light / Dark 双模式）
 
-参考设计：HTML 参考页面的颜色系统
+参考设计规范（photocrop_design_spec.md）：
 - Light 模式：#F5F5F5 面板、#E8E8E8 画布、#000000 强调
 - Dark 模式：#141414 面板、#1A1A1A 画布、#FFFFFF 强调
 - 切换动画：350ms cubic-bezier(0.4, 0, 0.2, 1)
+- 字体系统：7 级字号 + 4 级字重
 """
 
 from __future__ import annotations
@@ -13,6 +14,32 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QEasingCurve, QObject, QVariantAnimation, Signal
 from PySide6.QtGui import QColor
+
+# ============================================================
+# 字体系统（设计规范 §3）
+# ============================================================
+
+FONT_FAMILY = '"SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif'
+FONT_DISPLAY = '"SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif'
+
+
+class FontSize:
+    """字号常量（px）"""
+    BRAND = 15        # Toolbar Logo
+    BRAND_LARGE = 28  # Empty State Logo
+    BODY = 13         # 按钮文字、表单值
+    SMALL = 12        # 输入框、列表项文件名
+    LABEL = 11        # Header 标签、状态栏、副标题
+    TINY = 10         # PDF 页面标记、缩略图标签
+    MICRO = 9         # 旋转角度显示
+
+
+class FontWeight:
+    """字重常量"""
+    LIGHT = 200       # "Photo" in Empty State
+    REGULAR = 400     # 默认
+    MEDIUM = 500      # 列表项文件名
+    SEMIBOLD = 600    # Header 标签、"Crop" 文字
 
 
 @dataclass(frozen=True)
@@ -44,8 +71,7 @@ class ThemeColors:
 
     # 画布特殊
     page_bg: str         # 扫描页背景
-    photo_slot: str      # 照片占位外层
-    photo_inner: str     # 照片占位内层
+    photo_slot: str      # 照片占位
 
 
 # ============================================================
@@ -69,7 +95,6 @@ LIGHT = ThemeColors(
     toolbar_float="rgba(0, 0, 0, 0.6)",
     page_bg="#F0EDE8",
     photo_slot="#D8D4CF",
-    photo_inner="#C8C4BF",
 )
 
 # ============================================================
@@ -81,10 +106,10 @@ DARK = ThemeColors(
     canvas_bg="#1A1A1A",
     surface="#1E1E1E",
     text="#F0F0F0",
-    text_secondary="#808080",
+    text_secondary="#909090",
     text_disabled="#606060",
-    border="#2A2A2A",
-    border_strong="#404040",
+    border="#333333",
+    border_strong="#4A4A4A",
     accent="#FFFFFF",
     accent_hover="#E0E0E0",
     danger="#FF5555",
@@ -93,7 +118,6 @@ DARK = ThemeColors(
     toolbar_float="rgba(0, 0, 0, 0.75)",
     page_bg="#2A2825",
     photo_slot="#3A3835",
-    photo_inner="#454340",
 )
 
 
@@ -141,7 +165,6 @@ class ThemeTransition:
             toolbar_float=cls._lerp_color(start.toolbar_float, end.toolbar_float, t),
             page_bg=cls._lerp_color(start.page_bg, end.page_bg, t),
             photo_slot=cls._lerp_color(start.photo_slot, end.photo_slot, t),
-            photo_inner=cls._lerp_color(start.photo_inner, end.photo_inner, t),
         )
 
 
@@ -219,36 +242,40 @@ class ThemeManager(QObject):
         self._transition_anim = anim
 
     def generate_stylesheet(self) -> str:
-        """生成全局 QSS 样式表"""
+        """生成全局 QSS 样式表（设计规范 §14）"""
         c = self.colors
+        ff = FONT_FAMILY
         return f"""
 /* === MainWindow === */
 QMainWindow {{
     background-color: {c.bg};
 }}
 
-/* === QPushButton — 默认（primary 黑底） === */
+/* === QPushButton — 默认（toolbar 样式） === */
 QPushButton {{
-    background-color: {c.accent};
-    color: {c.bg};
-    border: none;
-    border-radius: 6px;
-    padding: 0 14px;
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 13px;
-    font-weight: 400;
+    background-color: transparent;
+    color: {c.text};
+    border: 1px solid {c.border};
+    border-radius: 4px;
+    padding: 0 12px;
+    font-family: {ff};
+    font-size: {FontSize.BODY}px;
+    font-weight: {FontWeight.REGULAR};
     min-height: 28px;
     letter-spacing: -0.2px;
 }}
 QPushButton:hover {{
-    background-color: {c.accent_hover};
+    background-color: {c.hover_bg};
+    border-color: {c.border_strong};
 }}
 QPushButton:pressed {{
-    background-color: {c.accent};
+    background-color: {c.selected_bg};
 }}
 QPushButton:disabled {{
-    background-color: {c.border};
+    background-color: transparent;
     color: {c.text_disabled};
+    border-color: {c.border};
+    opacity: 0.5;
 }}
 
 /* === #bottomBar QPushButton — 底栏缩放按钮（更紧凑） === */
@@ -258,9 +285,9 @@ QPushButton:disabled {{
     border: 1px solid {c.border};
     border-radius: 4px;
     padding: 0 8px;
-    font-size: 11px;
-    min-height: 20px;
-    font-weight: 400;
+    font-size: {FontSize.LABEL}px;
+    min-height: 28px;
+    font-weight: {FontWeight.REGULAR};
 }}
 #bottomBar QPushButton:hover {{
     background-color: {c.hover_bg};
@@ -275,11 +302,11 @@ QPushButton[toolbar="true"] {{
     background-color: transparent;
     color: {c.text};
     border: 1px solid {c.border};
-    border-radius: 6px;
-    padding: 0 14px;
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 13px;
-    font-weight: 400;
+    border-radius: 4px;
+    padding: 0 12px;
+    font-family: {ff};
+    font-size: {FontSize.BODY}px;
+    font-weight: {FontWeight.REGULAR};
     min-height: 28px;
 }}
 QPushButton[toolbar="true"]:hover {{
@@ -293,13 +320,13 @@ QPushButton[toolbar="true"]:disabled {{
     background-color: transparent;
     color: {c.text_disabled};
     border-color: {c.border};
-    opacity: 0.35;
+    opacity: 0.5;
 }}
 QPushButton[toolbar="true"]:checked {{
     background-color: {c.selected_bg};
     color: {c.text};
     border-color: {c.border_strong};
-    font-weight: 600;
+    font-weight: {FontWeight.SEMIBOLD};
 }}
 QPushButton[toolbar="true"][iconOnly="true"] {{
     padding: 0;
@@ -309,7 +336,7 @@ QPushButton[toolbar="true"][iconOnly="true"] {{
 QPushButton[secondary="true"] {{
     background-color: transparent;
     color: {c.text};
-    border: 1px solid {c.text};
+    border: 1px solid {c.accent};
 }}
 QPushButton[secondary="true"]:hover {{
     background-color: {c.hover_bg};
@@ -317,20 +344,23 @@ QPushButton[secondary="true"]:hover {{
 
 /* === QPushButton:checked — Toggle 选中态 === */
 QPushButton:checked {{
-    background-color: {c.accent};
-    color: {c.surface};
-    border-color: transparent;
+    background-color: {c.selected_bg};
+    color: {c.text};
+    border-color: {c.border_strong};
+    font-weight: {FontWeight.SEMIBOLD};
 }}
 
 /* === QPushButton[export_btn] — Export 按钮 === */
 QPushButton[export_btn="true"] {{
     background-color: {c.accent};
-    color: {c.surface};
+    color: {"#FFFFFF" if self._mode == "light" else "#1A1A1A"};
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 0 20px;
-    font-weight: 500;
+    font-weight: {FontWeight.MEDIUM};
     min-height: 28px;
+    max-height: 28px;
+    font-size: {FontSize.BODY}px;
 }}
 QPushButton[export_btn="true"]:hover {{
     background-color: {c.accent_hover};
@@ -338,24 +368,35 @@ QPushButton[export_btn="true"]:hover {{
 
 /* === QLabel === */
 QLabel {{
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 13px;
+    font-family: {ff};
+    font-size: {FontSize.BODY}px;
     color: {c.text};
     letter-spacing: -0.2px;
 }}
 QLabel[pageInfo="true"] {{
     color: {c.text_secondary};
-    font-size: 13px;
+    font-size: {FontSize.BODY}px;
 }}
 
 /* === QStatusBar === */
 QStatusBar {{
     background-color: {c.bg};
     border-top: 1px solid {c.border};
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 12px;
+    font-family: {ff};
+    font-size: {FontSize.SMALL}px;
     color: {c.text_secondary};
     padding: 4px 16px;
+}}
+
+/* === QToolTip === */
+QToolTip {{
+    background-color: {c.surface};
+    color: {c.text};
+    border: 1px solid {c.border_strong};
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: {ff};
+    font-size: {FontSize.LABEL}px;
 }}
 
 /* === QMenu === */
@@ -363,14 +404,15 @@ QMenu {{
     background-color: {c.bg};
     color: {c.text};
     border: 1px solid {c.border_strong};
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 4px;
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 12px;
+    font-family: {ff};
+    font-size: {FontSize.SMALL}px;
 }}
 QMenu::item {{
     padding: 6px 16px;
     border-radius: 4px;
+    min-height: 32px;
 }}
 QMenu::item:selected {{
     background-color: {c.hover_bg};
@@ -379,13 +421,14 @@ QMenu::item:selected {{
 /* === QSpinBox / QDoubleSpinBox === */
 QSpinBox, QDoubleSpinBox {{
     border: 1px solid {c.border};
-    border-radius: 6px;
-    padding: 4px 6px;
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 12px;
+    border-radius: 4px;
+    padding: 0 8px;
+    font-family: {ff};
+    font-size: {FontSize.SMALL}px;
     background: {c.surface};
     color: {c.text};
     min-height: 28px;
+    max-height: 28px;
 }}
 QSpinBox:focus, QDoubleSpinBox:focus {{
     border-color: {c.border_strong};
@@ -400,13 +443,14 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
 /* === QComboBox === */
 QComboBox {{
     border: 1px solid {c.border};
-    border-radius: 6px;
-    padding: 3px 28px 3px 10px;
-    font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;
-    font-size: 12px;
+    border-radius: 4px;
+    padding: 0px 28px 0px 8px;
+    font-family: {ff};
+    font-size: {FontSize.SMALL}px;
     background: {c.surface};
     color: {c.text};
     min-height: 28px;
+    max-height: 28px;
 }}
 QComboBox:hover {{
     border-color: {c.border_strong};
@@ -417,8 +461,8 @@ QComboBox::drop-down {{
     width: 24px;
     border: none;
     border-left: 1px solid {c.border};
-    border-top-right-radius: 6px;
-    border-bottom-right-radius: 6px;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
 }}
 QComboBox QAbstractItemView {{
     background-color: {c.surface};
@@ -426,7 +470,7 @@ QComboBox QAbstractItemView {{
     selection-background-color: {c.selected_bg};
     selection-color: {c.text};
     border: 1px solid {c.border_strong};
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 4px;
     outline: none;
 }}
@@ -437,7 +481,7 @@ QComboBox QAbstractItemView::item {{
     border: none;
 }}
 QComboBox QAbstractItemView::item:selected {{
-    background-color: {c.selected_bg};
+    background-color: {c.accent_hover};
     color: {c.text};
 }}
 QComboBox QAbstractItemView::item:hover {{
@@ -457,6 +501,7 @@ QScrollBar:vertical {{
 QScrollBar::handle:vertical {{
     background: {c.border_strong};
     border-radius: 2px;
+    min-height: 20px;
 }}
 QScrollBar::handle:vertical:hover {{
     background: {c.text_disabled};

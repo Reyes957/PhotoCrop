@@ -87,7 +87,7 @@ class CropCanvas(QGraphicsView):
         self._drawing = False
         self._draw_start = QPointF()
         self._temp_rect = None
-        self._min_drag_size = 30  # 最小拖动距离（像素），防止手抖误触
+        self._min_drag_size = 20  # 设计规范：仅在宽高都 > 20px 时显示
 
         # 画布外观
         self._canvas_bg = QColor("#E8E8E8")
@@ -173,6 +173,7 @@ class CropCanvas(QGraphicsView):
         self._current_page = 0
 
         self._display_image(img)
+        self.reset_undo()
         self.image_loaded.emit()
 
     def _load_pdf(self, path: Path) -> None:
@@ -209,15 +210,11 @@ class CropCanvas(QGraphicsView):
         self.image_loaded.emit()
 
     def _display_image(self, img: Image.Image) -> None:
-        """显示图像"""
+        """显示图像（不清空撤销历史 — 由调用方管理）"""
         # 清除旧裁剪框
         for item in self._crop_items[:]:
             self._scene.removeItem(item)
         self._crop_items.clear()
-
-        # 重置撤销历史，推入空状态作为初始帧
-        self._undo_manager.clear()
-        self._undo_manager.push_state([])
 
         # 清除旧图片
         if self._pixmap_item:
@@ -242,6 +239,7 @@ class CropCanvas(QGraphicsView):
         self._source_image = img
 
         self._display_image(img)
+        self.reset_undo()
         self.page_changed.emit(page_num, len(self._pdf_pages))
 
     def next_page(self) -> None:
@@ -418,6 +416,54 @@ class CropCanvas(QGraphicsView):
         """将当前裁剪框状态推入撤销栈"""
         self._undo_manager.push_state(self.crop_rects)
 
+    def push_undo_state(self) -> None:
+        """将当前裁剪框状态推入撤销栈（公共接口）"""
+        self._push_undo_state()
+
+    # ---- 公共 Undo API（供 MainWindow / Controller 调用） ----
+
+    def get_undo_snapshot(self) -> str:
+        """获取撤销管理器的完整序列化快照（JSON 字符串）"""
+        return self._undo_manager.serialize()
+
+    def restore_undo_snapshot(self, snapshot: str | list) -> None:
+        """从序列化快照恢复撤销/重做栈"""
+        self._undo_manager.deserialize(snapshot)
+
+    def reset_undo(self) -> None:
+        """清空撤销历史并推入空初始帧"""
+        self._undo_manager.clear()
+        self._undo_manager.push_state([])
+
+    def restore_rects_from_list(self, rects: list[CropRect]) -> None:
+        """用给定的 CropRect 列表替换当前所有裁剪框（公共接口）"""
+        self._restore_rects(rects)
+
+    def scene_rect(self) -> QRectF:
+        """返回场景矩形（公共接口）"""
+        return self._scene.sceneRect()
+
+    def can_undo(self) -> bool:
+        """是否可以撤销"""
+        return self._undo_manager.can_undo()
+
+    def can_redo(self) -> bool:
+        """是否可以重做"""
+        return self._undo_manager.can_redo()
+
+    def clear_scene_selection(self) -> None:
+        """清除场景中所有选中项"""
+        self._scene.clearSelection()
+
+    def remove_crop_item(self, item: CropItem) -> None:
+        """移除指定裁剪框（公共接口，含 undo 推入和信号通知）"""
+        if item in self._crop_items:
+            self._crop_items.remove(item)
+        if item.scene():
+            self._scene.removeItem(item)
+        self._push_undo_state()
+        self.rects_changed.emit()
+
     def _on_selection_changed(self) -> None:
         """scene 选中变化时发出信号"""
         self.selection_changed.emit()
@@ -554,10 +600,12 @@ class CropCanvas(QGraphicsView):
                 if dx < self._min_drag_size and dy < self._min_drag_size:
                     return  # 移动太小，忽略
                 # 超过阈值，创建临时矩形
+                # 设计规范：1.5px dashed accent, background selected_bg, 圆角 2px
+                from photocrop.ui.theme import theme as _t
                 self._temp_rect = self._scene.addRect(
                     QRectF(self._draw_start, end).normalized(),
-                    QPen(QColor("#000000"), 1.5, Qt.PenStyle.DashLine),
-                    QBrush(QColor(0, 0, 0, 20)),
+                    QPen(QColor(_t.colors.accent), 1.5, Qt.PenStyle.DashLine),
+                    QBrush(QColor(_t.colors.selected_bg)),
                 )
                 self._temp_rect.setZValue(1000)
             else:
@@ -653,9 +701,12 @@ class CropCanvas(QGraphicsView):
             event.ignore()
 
     def _show_drag_overlay(self, valid: bool = True) -> None:
-        """显示拖拽遮罩"""
+        """显示拖拽遮罩（设计规范：半透明 + 虚线框 + 图标 + 文字）"""
         if self._drag_overlay is not None:
             self._hide_drag_overlay()
+
+        from photocrop.ui.icons import get_icon
+        from photocrop.ui.theme import FONT_FAMILY, FontSize
 
         overlay = QWidget(self.viewport())
         overlay.setGeometry(self.viewport().rect())
@@ -666,39 +717,70 @@ class CropCanvas(QGraphicsView):
 
         # 虚线框容器
         box = QWidget()
-        box.setFixedSize(300, 120)
+        box.setFixedSize(340, 140)
+        accent = "#000000" if valid else "#CC0000"
         box.setStyleSheet(
-            f"border: 2px dashed {'#000000' if valid else '#CC0000'};"
-            f"border-radius: 12px;"
+            f"border: 2px dashed {accent};"
+            f"border-radius: 8px;"
             f"background: rgba({'0,0,0' if valid else '204,0,0'}, 0.05);"
+            f"padding: 32px 48px;"
         )
         box_layout = QVBoxLayout(box)
         box_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        box_layout.setSpacing(8)
 
-        icon_label = QLabel("⬆" if valid else "⚠")
+        # 图标（使用 SVG）
+        icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet(
-            f"font-size: 24px; color: {'#000000' if valid else '#CC0000'}; border: none; background: transparent;"
-        )
+        icon_name = "upload" if valid else "x"
+        icon_pixmap = get_icon(icon_name, accent).pixmap(20, 20)
+        icon_label.setPixmap(icon_pixmap)
+        icon_label.setStyleSheet("border: none; background: transparent;")
         box_layout.addWidget(icon_label)
 
         text = "Drop images here to import" if valid else "Unsupported file format"
         text_label = QLabel(text)
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         text_label.setStyleSheet(
-            f"font-size: 13px; color: {'#000000' if valid else '#CC0000'}; border: none; background: transparent;"
+            f"font-size: {FontSize.BODY}px; color: {accent}; "
+            f"border: none; background: transparent; font-family: {FONT_FAMILY};"
         )
         box_layout.addWidget(text_label)
 
         layout.addWidget(box)
 
-        # 半透明背景
-        overlay.setStyleSheet("background: rgba(0, 0, 0, 0.08);")
+        # 设计规范：遮罩背景 theme["accent"] opacity 0.1
+        from photocrop.ui.theme import theme as _t
+        accent_color = _t.colors.accent
+        overlay.setStyleSheet(f"background: {accent_color}; opacity: 0.1;")
         overlay.show()
         self._drag_overlay = overlay
 
+        # 脉冲动画（opacity 0.7↔0.9, 1.5s infinite）
+        if valid:
+            from PySide6.QtWidgets import QGraphicsOpacityEffect
+            eff = QGraphicsOpacityEffect(overlay)
+            eff.setOpacity(0.7)
+            overlay.setGraphicsEffect(eff)
+            self._drag_pulse_effect = eff
+            self._drag_pulse_timer = QTimer()
+            self._drag_pulse_alpha = 0.7
+            self._drag_pulse_dir = 1
+            def pulse_drag():
+                self._drag_pulse_alpha += self._drag_pulse_dir * 0.005
+                if self._drag_pulse_alpha >= 0.9:
+                    self._drag_pulse_dir = -1
+                elif self._drag_pulse_alpha <= 0.7:
+                    self._drag_pulse_dir = 1
+                eff.setOpacity(self._drag_pulse_alpha)
+            self._drag_pulse_timer.timeout.connect(pulse_drag)
+            self._drag_pulse_timer.start(50)
+
     def _hide_drag_overlay(self) -> None:
         """隐藏拖拽遮罩"""
+        if hasattr(self, '_drag_pulse_timer') and self._drag_pulse_timer is not None:
+            self._drag_pulse_timer.stop()
+            self._drag_pulse_timer = None
         if self._drag_overlay is not None:
             self._drag_overlay.hide()
             self._drag_overlay.deleteLater()
@@ -707,55 +789,91 @@ class CropCanvas(QGraphicsView):
     # ---- Loading 状态指示器 ----
 
     def show_loading(self, message: str = "Loading image...") -> None:
-        """显示 loading 遮罩（半透明背景 + spinner + 文字）"""
+        """显示 loading 遮罩（设计规范：半透明背景 + spinner + 文字脉冲）"""
         self.hide_loading()
+
+        from photocrop.ui.theme import FONT_FAMILY, FontSize
 
         overlay = QWidget(self.viewport())
         overlay.setGeometry(self.viewport().rect())
-        overlay.setStyleSheet("background: rgba(245, 245, 245, 0.5);")
+        # 设计规范：theme["bg"] 50% opacity
+        from photocrop.ui.theme import theme as _theme
+        bg_color = _theme.colors.bg
+        overlay.setStyleSheet(
+            f"background: {bg_color}; opacity: 0.5;"
+        )
 
         layout = QVBoxLayout(overlay)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(12)
 
-        # Spinner 文字
-        spinner_label = QLabel("⟳")
-        spinner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        spinner_label.setStyleSheet(
-            "font-size: 32px; color: #000000; background: transparent;"
-        )
-        layout.addWidget(spinner_label)
+        # Spinner（自绘旋转圆弧）
+        self._spinner_label = QLabel()
+        self._spinner_label.setFixedSize(24, 24)
+        self._spinner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._spinner_label, 0, Qt.AlignmentFlag.AlignCenter)
 
-        # 提示文字
+        # 提示文字（脉冲动画）
         text_label = QLabel(message)
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         text_label.setStyleSheet(
-            "font-size: 13px; color: #666666; background: transparent;"
-            "font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;"
+            f"font-size: {FontSize.BODY}px; color: #666666; background: transparent; "
+            f"font-family: {FONT_FAMILY};"
         )
         layout.addWidget(text_label)
 
         overlay.show()
         self._loading_overlay = overlay
 
-        # 启动 spinner 旋转动画
+        # 启动 spinner 旋转动画（1s per rotation, linear）
         self._spinner_angle = 0
         self._spinner_timer = QTimer()
-        self._spinner_timer.timeout.connect(lambda: self._rotate_spinner(spinner_label))
-        self._spinner_timer.start(50)
+        self._spinner_timer.timeout.connect(self._rotate_spinner)
+        self._spinner_timer.start(33)  # ~30fps
 
-    def _rotate_spinner(self, label: QLabel) -> None:
-        """旋转 spinner"""
-        self._spinner_angle = (self._spinner_angle + 10) % 360
-        label.setStyleSheet(
-            f"font-size: 32px; color: #000000; background: transparent;"
-            f"transform: rotate({self._spinner_angle}deg);"
-        )
+        # 文字脉冲动画（2s: opacity 1→0.5→1）
+        self._text_pulse_timer = QTimer()
+        self._text_pulse_alpha = 1.0
+        self._text_pulse_dir = -1
+        def pulse_text():
+            self._text_pulse_alpha += self._text_pulse_dir * 0.025
+            if self._text_pulse_alpha <= 0.5:
+                self._text_pulse_dir = 1
+            elif self._text_pulse_alpha >= 1.0:
+                self._text_pulse_dir = -1
+            text_label.setStyleSheet(
+                f"font-size: {FontSize.BODY}px; color: #666666; background: transparent; "
+                f"font-family: {FONT_FAMILY}; opacity: {self._text_pulse_alpha:.2f};"
+            )
+        self._text_pulse_timer.timeout.connect(pulse_text)
+        self._text_pulse_timer.start(50)  # 2s cycle = 40 steps × 50ms
+
+    def _rotate_spinner(self) -> None:
+        """旋转 spinner（自绘弧线）"""
+        self._spinner_angle = (self._spinner_angle + 6) % 360
+        if hasattr(self, '_spinner_label') and self._spinner_label:
+            from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+            pixmap = QPixmap(24, 24)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            pen = QPen(QColor("#000000"), 2.5)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            painter.translate(12, 12)
+            painter.rotate(self._spinner_angle)
+            painter.drawArc(-9, -9, 18, 18, 0, 270 * 16)
+            painter.end()
+            self._spinner_label.setPixmap(pixmap)
 
     def hide_loading(self) -> None:
         """隐藏 loading 遮罩"""
         if self._spinner_timer is not None:
             self._spinner_timer.stop()
             self._spinner_timer = None
+        if hasattr(self, '_text_pulse_timer') and self._text_pulse_timer is not None:
+            self._text_pulse_timer.stop()
+            self._text_pulse_timer = None
         if self._loading_overlay is not None:
             self._loading_overlay.hide()
             self._loading_overlay.deleteLater()

@@ -15,9 +15,10 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 from PIL import Image
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from photocrop.export.cropper import export_photo_to_memory
 from photocrop.ui.icons import get_icon
+from photocrop.ui.theme import FONT_FAMILY
 from photocrop.ui.utils import pil_to_pixmap
 from photocrop.utils.crop_rect import CropRect
 
@@ -37,9 +39,6 @@ class PageCropRef(NamedTuple):
     """全局索引到页面+本地索引的映射"""
     page_idx: int
     local_idx: int
-
-
-FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass
@@ -294,13 +293,23 @@ class ExtractedImagesPanel(QWidget):
         c = self._colors
         card = QWidget()
         card.setFixedSize(90, 110)
+
+        # 入场动画（设计规范：opacity 0→1, 150ms, 间隔 25ms）
+        eff = QGraphicsOpacityEffect(card)
+        eff.setOpacity(0.0)
+        card.setGraphicsEffect(eff)
+
+        delay = index * 25  # 25ms stagger per card
+        QTimer.singleShot(delay, lambda: self._animate_card_in(eff))
+
         card.setStyleSheet(
             f"QWidget {{ background-color: {c.card_bg}; border-radius: 6px; }}"
             f"QWidget:hover {{ background-color: {c.card_hover}; }}"
         )
 
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(5, 5, 5, 5)
+        # 设计规范：padding 6px
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(3)
 
         thumb_label = QLabel()
@@ -333,9 +342,10 @@ class ExtractedImagesPanel(QWidget):
 
         if show_delete:
             btn_del = QPushButton()
-            btn_del.setFixedSize(20, 20)
+            btn_del.setFixedSize(24, 24)
             btn_del.setIcon(get_icon("x", c.text_secondary))
-            btn_del.setIconSize(QSize(12, 12))
+            btn_del.setIconSize(QSize(14, 14))
+            btn_del.setToolTip("Delete")
             btn_del.setStyleSheet(
                 f"QPushButton {{ background-color: transparent; border: none; padding: 0; border-radius: 3px; }}"
                 f"QPushButton:hover {{ background-color: {c.hover_bg}; }}"
@@ -380,13 +390,44 @@ class ExtractedImagesPanel(QWidget):
         except (ValueError, RuntimeError, OSError):
             return None
 
+    def _animate_card_in(self, effect: QGraphicsOpacityEffect) -> None:
+        """缩略图入场动画（150ms opacity 0→1）"""
+        anim = QPropertyAnimation(effect, b"opacity")
+        anim.setDuration(150)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.start()
+        # 保存引用防止 GC
+        if not hasattr(self, '_card_anims'):
+            self._card_anims = []
+        self._card_anims.append(anim)
+
     def _toggle_collapse(self) -> None:
+        """折叠/展开动画（200ms max-height + opacity）"""
         self._collapsed = not self._collapsed
-        self._scroll.setVisible(not self._collapsed)
         self._header.setText(
             "EXTRACTED IMAGES  ▸" if self._collapsed
             else "EXTRACTED IMAGES  ▾"
         )
+
+        # 动画：max-height 过渡
+        anim = QPropertyAnimation(self._scroll, b"maximumHeight")
+        anim.setDuration(200)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        if self._collapsed:
+            anim.setStartValue(self._scroll.sizeHint().height())
+            anim.setEndValue(0)
+        else:
+            self._scroll.setVisible(True)
+            anim.setStartValue(0)
+            anim.setEndValue(max(self._scroll.sizeHint().height(), 200))
+        anim.finished.connect(
+            lambda: self._scroll.setVisible(not self._collapsed)
+            if self._collapsed else None
+        )
+        anim.start()
+        self._collapse_anim = anim  # prevent GC
 
     def set_theme(self, colors) -> None:
         """更新面板颜色（主题切换时调用）"""

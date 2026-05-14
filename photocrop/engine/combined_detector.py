@@ -17,6 +17,7 @@ CombinedDetector — 组合检测器（IoU 投票融合）
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 
 from PIL import Image
 
@@ -25,6 +26,14 @@ from photocrop.engine.detector_base import BaseDetector
 from photocrop.engine.enhanced_cv_detector import EnhancedCVDetector
 from photocrop.utils.crop_rect import CropRect
 from photocrop.utils.iou import compute_iou
+
+
+@dataclass
+class _VoteEntry:
+    """投票记录 — 替代在 CropRect 上动态添加 _vote_count / _matched"""
+    rect: CropRect
+    vote_count: int = 1
+    matched: bool = False
 
 
 class CombinedDetector(BaseDetector):
@@ -50,73 +59,62 @@ class CombinedDetector(BaseDetector):
         rects_cv = self._cv.detect(page_img)
         rects_enh = self._enhanced.detect(page_img)
 
-        # 标记来源和初始置信度
-        for r in rects_cv:
-            r._vote_count = 1
-            r._matched = False
-        for r in rects_enh:
-            r._vote_count = 1
-            r._matched = False
+        # 用独立的 _VoteEntry 跟踪投票状态（不污染 CropRect）
+        cv_entries = [_VoteEntry(rect=r) for r in rects_cv]
+        enh_entries = [_VoteEntry(rect=r) for r in rects_enh]
 
         # 投票：找到两个检测器之间的匹配对
-        for cv_rect in rects_cv:
+        for cv_entry in cv_entries:
             best_iou = 0.0
-            best_enh = None
-            for enh_rect in rects_enh:
-                if enh_rect._matched:
+            best_enh: _VoteEntry | None = None
+            for enh_entry in enh_entries:
+                if enh_entry.matched:
                     continue
-                iou = compute_iou(cv_rect, enh_rect)
+                iou = compute_iou(cv_entry.rect, enh_entry.rect)
                 if iou > best_iou:
                     best_iou = iou
-                    best_enh = enh_rect
+                    best_enh = enh_entry
 
             if best_iou > self._iou_threshold and best_enh is not None:
                 # 匹配成功：两个检测器都检测到 → 高置信度
-                cv_rect._vote_count = 2
-                cv_rect._matched = True
-                best_enh._matched = True
+                cv_entry.vote_count = 2
+                cv_entry.matched = True
+                best_enh.matched = True
                 # 取两者中面积更合理的那个
-                if abs(cv_rect.aspect_ratio - 1.0) < abs(best_enh.aspect_ratio - 1.0):
-                    cv_rect.confidence = 2.0
+                if abs(cv_entry.rect.aspect_ratio - 1.0) < abs(best_enh.rect.aspect_ratio - 1.0):
+                    cv_entry.rect.confidence = 2.0
                 else:
-                    # 用 enhanced 的框，但标记为双投票
-                    cv_rect._vote_count = 0  # 标记为不使用 cv 的框
+                    # 用 enhanced 的框，但标记为不使用 cv 的框
+                    cv_entry.vote_count = 0
 
         # 收集结果
-        merged = []
+        merged: list[CropRect] = []
 
         # 1. 双投票的框（两个检测器都检测到）
-        for r in rects_cv:
-            if r._vote_count >= 2:
-                r.confidence = 2.0
-                r.source_type = "detection"
-                merged.append(r)
+        for entry in cv_entries:
+            if entry.vote_count >= 2:
+                entry.rect.confidence = 2.0
+                entry.rect.source_type = "detection"
+                merged.append(entry.rect)
 
         # 2. 仅 CV 检测到且未匹配的
-        for r in rects_cv:
-            if r._vote_count == 1 and not r._matched:
-                r.confidence = 1.0
-                r.source_type = "detection"
-                merged.append(r)
+        for entry in cv_entries:
+            if entry.vote_count == 1 and not entry.matched:
+                entry.rect.confidence = 1.0
+                entry.rect.source_type = "detection"
+                merged.append(entry.rect)
 
         # 3. 仅 Enhanced 检测到且未匹配的
-        for r in rects_enh:
-            if not r._matched:
-                r.confidence = 0.5
-                r.source_type = "detection"
-                merged.append(r)
+        for entry in enh_entries:
+            if not entry.matched:
+                entry.rect.confidence = 0.5
+                entry.rect.source_type = "detection"
+                merged.append(entry.rect)
 
         # 按置信度降序排序，同置信度按面积降序
         merged.sort(key=lambda r: (r.confidence, r.width * r.height), reverse=True)
         for i, r in enumerate(merged):
             r.index = i
-
-        # 清理临时属性
-        for r in merged:
-            if hasattr(r, '_vote_count'):
-                del r._vote_count
-            if hasattr(r, '_matched'):
-                del r._matched
 
         return merged
 

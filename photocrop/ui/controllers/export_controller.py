@@ -65,79 +65,15 @@ class ExportController(QObject):
         current = 0
 
         if scope == "page":
-            # 导出当前页面
             exported, errors, current = self._export_page(
                 canvas, output_dir, suffix, quality, max_w, max_h,
                 auto_rotate, trim_white, template, current, total,
             )
         else:
-            # 导出所有 Session
-            for key, sess in self._state._sessions.items():
-                source_name = sess.source_path.stem
-
-                if sess.is_pdf:
-                    # PDF：逐页导出
-                    for page_idx in range(sess.page_count):
-                        rects = sess.page_crop_rects.get(page_idx, [])
-                        if not rects:
-                            continue
-                        try:
-                            source_img = sess.get_page_image(page_idx)
-                        except Exception:
-                            continue
-
-                        for i, rect in enumerate(rects):
-                            current += 1
-                            out_name = self._fill_template(
-                                template, source_name, page_idx + 1,
-                                i + 1, suffix.lstrip("."),
-                            )
-                            out_path = output_dir / out_name
-                            try:
-                                export_photo(
-                                    source_img, rect, out_path,
-                                    auto_rotate=auto_rotate,
-                                    trim_white=trim_white,
-                                    quality=quality,
-                                    max_width=max_w, max_height=max_h,
-                                )
-                                exported += 1
-                            except Exception as e:
-                                errors.append(
-                                    f"{source_name} p{page_idx + 1} #{i + 1}: {e}"
-                                )
-                            self.export_progress.emit(current, total)
-                else:
-                    # 普通图片 — 当前编辑页从 canvas 取实时数据
-                    if key == self._state._current_key:
-                        rects = canvas.crop_rects
-                        source_img = canvas.source_image
-                    else:
-                        rects = sess.crop_rects
-                        source_img = sess.source_image
-
-                    if not rects:
-                        continue
-
-                    for i, rect in enumerate(rects):
-                        current += 1
-                        out_name = self._fill_template(
-                            template, source_name, 1,
-                            i + 1, suffix.lstrip("."),
-                        )
-                        out_path = output_dir / out_name
-                        try:
-                            export_photo(
-                                source_img, rect, out_path,
-                                auto_rotate=auto_rotate,
-                                trim_white=trim_white,
-                                quality=quality,
-                                max_width=max_w, max_height=max_h,
-                            )
-                            exported += 1
-                        except Exception as e:
-                            errors.append(f"{source_name} #{i + 1}: {e}")
-                        self.export_progress.emit(current, total)
+            exported, errors, current = self._export_all_sessions(
+                canvas, output_dir, suffix, quality, max_w, max_h,
+                auto_rotate, trim_white, template, current, total,
+            )
 
         self.export_finished.emit(exported, errors)
         return exported, errors
@@ -180,9 +116,75 @@ class ExportController(QObject):
                     quality=quality, max_width=max_w, max_height=max_h,
                 )
                 exported += 1
-            except Exception as e:
+            except (ValueError, RuntimeError, OSError) as e:
                 errors.append(f"#{i + 1}: {e}")
             self.export_progress.emit(current, total)
+
+        return exported, errors, current
+
+    def _export_all_sessions(
+        self, canvas: CropCanvas, output_dir: Path,
+        suffix: str, quality: int, max_w: int | None,
+        max_h: int | None, auto_rotate: bool, trim_white: bool,
+        template: str, current: int, total: int,
+    ) -> tuple[int, list[str], int]:
+        """导出所有 Session"""
+        exported = 0
+        errors: list[str] = []
+        export_kw = dict(
+            auto_rotate=auto_rotate, trim_white=trim_white,
+            quality=quality, max_width=max_w, max_height=max_h,
+        )
+
+        for key, sess in self._state._sessions.items():
+            source_name = sess.source_path.stem
+
+            if sess.is_pdf:
+                for page_idx in range(sess.page_count):
+                    rects = sess.page_crop_rects.get(page_idx, [])
+                    if not rects:
+                        continue
+                    try:
+                        source_img = sess.get_page_image(page_idx)
+                    except (RuntimeError, IndexError, OSError):
+                        continue
+
+                    for i, rect in enumerate(rects):
+                        current += 1
+                        out_name = self._fill_template(
+                            template, source_name, page_idx + 1,
+                            i + 1, suffix.lstrip("."),
+                        )
+                        out_path = output_dir / out_name
+                        try:
+                            export_photo(source_img, rect, out_path, **export_kw)
+                            exported += 1
+                        except (ValueError, RuntimeError, OSError) as e:
+                            errors.append(f"{source_name} p{page_idx + 1} #{i + 1}: {e}")
+                        self.export_progress.emit(current, total)
+            else:
+                if key == self._state._current_key:
+                    rects = canvas.crop_rects
+                    source_img = canvas.source_image
+                else:
+                    rects = sess.crop_rects
+                    source_img = sess.source_image
+
+                if not rects:
+                    continue
+
+                for i, rect in enumerate(rects):
+                    current += 1
+                    out_name = self._fill_template(
+                        template, source_name, 1, i + 1, suffix.lstrip("."),
+                    )
+                    out_path = output_dir / out_name
+                    try:
+                        export_photo(source_img, rect, out_path, **export_kw)
+                        exported += 1
+                    except (ValueError, RuntimeError, OSError) as e:
+                        errors.append(f"{source_name} #{i + 1}: {e}")
+                    self.export_progress.emit(current, total)
 
         return exported, errors, current
 
@@ -204,17 +206,16 @@ class ExportController(QObject):
         - {index}: 裁剪框序号（从1开始）
         - {index:02d}: 带格式化的序号
         """
-        out = (template
-               .replace("{name}", source_name)
-               .replace("{page}", str(page_num))
-               .replace("{ext}", ext))
+        _vars = {"name": source_name, "page": str(page_num), "ext": ext}
 
-        # 处理 {index} 和 {index:02d} 等格式化版本
-        out = re.sub(
-            r'\{index(?::([^}]+))?\}',
-            lambda m: format(index, m.group(1) or "d"),
-            out,
-        )
+        def _replace(m: re.Match) -> str:
+            key = m.group(1)
+            fmt = m.group(2)
+            if key == "index":
+                return format(index, fmt or "d") if fmt else str(index)
+            return _vars.get(key, m.group(0))
+
+        out = re.sub(r'\{(\w+)(?::([^}]+))?\}', _replace, template)
 
         # 如果模板中没有 {index}，自动追加序号
         if "{index" not in template:

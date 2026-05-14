@@ -29,6 +29,8 @@ The whole detection pipeline runs locally with offline models. Your photos never
 - **Multiple detection engines** — Traditional CV (edge detection + morphology), Enhanced CV (deprecated), Combined detector (IoU voting fusion), and YOLO-World zero-shot open-vocabulary detection
 - **Pluggable detector architecture** — ABC base class + factory pattern; swap detectors or add your own
 - **Three modes** — CLI for scripting, GUI (PySide6) for interactive editing, PDF batch for bulk processing
+- **Controller architecture** — 5 dedicated controllers (Detection, Export, Session, Theme, View) decouple business logic from Qt widgets
+- **Global state management** — AppState observable container with signal-based subscriptions for all UI components
 - **Multi-image management** — Left panel with thumbnails, file names, and crop counts; right-click context menu
 - **Crop property panel** — Real-time editing of Width/Height/X/Y/Rotation with aspect ratio lock
 - **Crop result preview** — 2-column grid with LRU cache; click to select or delete
@@ -40,6 +42,10 @@ The whole detection pipeline runs locally with offline models. Your photos never
 - **Template system** — Percentage-based crop templates that work across different images
 - **Sync & Transform** — Sync crop dimensions across selections; flip horizontal/vertical
 - **Smart export** — Auto-rotation correction, white-border trimming, EXIF metadata, multi-format output
+- **Light/Dark theme** — Dual theme with 350ms cubic-bezier color transition animation
+- **Toast notifications** — Non-modal slide-in notifications (300ms in, 2.5s stay, 200ms out, max 3 stacked)
+- **Drag & drop import** — Drag files onto canvas with overlay feedback, supports 8 file formats
+- **Press animation** — PressButton with scale(0.97) micro-interaction on click
 - **Undo/Redo** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y for all crop operations
 - **Multi-select** — Ctrl+Click, Ctrl+A (select all), Tab/Shift+Tab (cycle), Esc (deselect)
 - **Keyboard shortcuts** — Ctrl+O (load), Ctrl+D (detect), Ctrl+E (export), arrow keys (page navigation)
@@ -141,17 +147,28 @@ photocrop/
   │
   ├── ui/                  PySide6 GUI (B&W minimal design)
   │   ├── main_window.py       Toolbar + status bar + shortcuts + multi-image session
-  │   ├── canvas.py            Canvas with interactive crop boxes + undo/redo + sync/flip
+  │   ├── canvas.py            Canvas with interactive crop boxes + undo/redo + sync/flip + drag & drop
   │   ├── crop_item.py         Editable crop region widget (rotation, handles, floating toolbar, aspect lock)
-  │   ├── undo_manager.py      Undo/redo state management (serializable)
+  │   ├── state.py             AppState global state manager + SessionState data class
+  │   ├── theme.py             ThemeManager singleton (Light/Dark) + 350ms transition animation
+  │   ├── toast.py             Toast notification component (non-modal, stacked)
+  │   ├── press_button.py      PressButton with scale(0.97) press animation
+  │   ├── undo_manager.py      Undo/redo state management (serializable, full dual-stack)
   │   ├── session.py           ImageSession data class for per-image state
   │   ├── image_list_panel.py  Left panel: thumbnails + filenames + crop counts
   │   ├── crop_options_panel.py Right panel: Width/Height/X/Y/Rotation/Aspect Ratio
   │   ├── extracted_images_panel.py Crop result preview (2-column grid + LRU cache)
   │   ├── single_view_panel.py Single View: thumbnail + full-size preview
-  │   ├── export_dialog.py     Batch export settings dialog
+  │   ├── export_dialog.py     Batch export settings dialog (form validation + QSettings)
   │   ├── template_manager.py  Crop template manager (percentage coordinates)
-  │   └── utils.py             PIL <-> Qt image conversion (pil_to_qimage / pil_to_pixmap)
+  │   ├── icons.py             SVG icon loader (22 icons, runtime color injection + cache)
+  │   ├── utils.py             PIL <-> Qt image conversion (pil_to_qimage / pil_to_pixmap)
+  │   └── controllers/         Business logic layer (decoupled from Qt widgets)
+  │       ├── detection_controller.py  Detection flow (single + batch PDF, QThreadPool)
+  │       ├── export_controller.py     Export flow (template fill, progress signals)
+  │       ├── session_controller.py    Session lifecycle (load, switch, save/restore)
+  │       ├── theme_controller.py      Theme switching (subscriber pattern)
+  │       └── view_coordinator.py      View transitions (Empty/Grid/Single, opacity animation)
   │
   ├── export/              Output layer
   │   ├── cropper.py       Crop -> rotate -> trim -> save

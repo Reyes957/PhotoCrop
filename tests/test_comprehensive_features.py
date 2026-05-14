@@ -169,6 +169,8 @@ class TestUndoManagerLifecycle:
         assert result is None  # can't go past oldest
 
     def test_serialize_deserialize_roundtrip(self):
+        import json
+
         um = UndoManager()
         um.push_state([])
         r1 = self.make_rect(10, 20, 100, 200)
@@ -178,23 +180,47 @@ class TestUndoManagerLifecycle:
         um.push_state([r1])
 
         data = um.serialize()
-        assert len(data) == 1
-        assert data[0]["x"] == 10
-        assert data[0]["rotation_angle"] == 33.0
-        assert data[0]["source_type"] == "manual"
+        # v0.6.4: serialize() returns JSON string, not list
+        assert isinstance(data, str)
+        parsed = json.loads(data)
+        assert "undo" in parsed
+        assert "redo" in parsed
+        assert len(parsed["undo"]) == 2  # empty frame + r1 frame
+        assert len(parsed["redo"]) == 0  # push clears redo
+        # Check the second frame (with r1)
+        frame = parsed["undo"][1]
+        assert len(frame) == 1
+        assert frame[0]["x"] == 10
+        assert frame[0]["rotation_angle"] == 33.0
+        assert frame[0]["source_type"] == "manual"
 
         # Deserialize into fresh manager
         um2 = UndoManager()
-        rects = um2.deserialize(data)
-        assert len(rects) == 1
-        assert rects[0].x == 10.0
-        assert rects[0].rotation_angle == 33.0
-        assert rects[0].source_type == "manual"
-        assert um2.can_undo() is False  # deserialize creates 1 frame
+        um2.deserialize(data)  # v0.6.4: returns None
+        # After deserialization, should have 2 undo frames (empty + r1)
+        assert um2.can_undo() is True
+        result = um2.undo()
+        assert len(result) == 0  # back to empty frame
+        result = um2.undo()
+        assert result is None  # can't go past oldest
+
+    def test_serialize_deserialize_legacy_compat(self):
+        """Deserialize must accept old list format for backward compatibility."""
+        um = UndoManager()
+        legacy_data = [
+            {"x": 10.0, "y": 20.0, "width": 100.0, "height": 200.0,
+             "rotation_angle": 0.0, "source_type": "detection", "page_num": 0}
+        ]
+        um.deserialize(legacy_data)
+        assert um.can_undo() is False  # legacy creates 1 frame only
 
     def test_serialize_empty(self):
         um = UndoManager()
-        assert um.serialize() == []
+        data = um.serialize()
+        assert isinstance(data, str)
+        import json
+        parsed = json.loads(data)
+        assert parsed == {"undo": [], "redo": []}
 
     def test_clear(self):
         um = UndoManager()
@@ -202,7 +228,9 @@ class TestUndoManagerLifecycle:
         um.push_state([self.make_rect()])
         um.clear()
         assert um.can_undo() is False
-        assert um.serialize() == []
+        import json
+        parsed = json.loads(um.serialize())
+        assert parsed == {"undo": [], "redo": []}
 
 
 # ============================================================
@@ -312,35 +340,38 @@ class TestToolbarButtonDetection:
     """Test toolbar button position calculation."""
 
     def test_five_buttons_positioned(self):
-        """Verify all five toolbar buttons get distinct rects above the crop box."""
-        from PySide6.QtCore import QRectF
-        # Replicate the toolbar rect calculation
-        btn_w = 20
+        """Verify all five toolbar buttons get distinct rects (28×28px per design spec)."""
+        # Design spec: 28×28px buttons, 4px gap, positioned at crop box right side
+        btn_w = 28
         n = 5
         gap = 4
-        total_w = btn_w * n + gap * (n - 1)
 
-        rect = QRectF(75, 85, 100, 80)  # center at (125, 125)
-        x_start = rect.center().x() - total_w / 2
-        y = rect.top() - 28
+        # Simulate crop rect: x=75, y=85, w=100, h=80 → right=175, top=85
+        crop_right = 175
+        crop_top = 85
 
-        rects = []
+        x_start = crop_right + 13
+        y = crop_top - btn_w // 2
+
+        # Generate button positions
+        positions = []
         for i in range(n):
             rx = x_start + i * (btn_w + gap)
-            rects.append(QRectF(rx, y, btn_w, btn_w))
+            positions.append((rx, y, btn_w, btn_w))
 
-        # All buttons should be above the crop box
-        for r in rects:
-            assert r.bottom() < rect.top()
-
-        # All buttons should have same size
-        for r in rects:
-            assert r.width() == 20
-            assert r.height() == 20
+        # All buttons should have same size (28×28)
+        for (x, y, w, h) in positions:
+            assert w == 28
+            assert h == 28
 
         # Buttons should not overlap
-        for i in range(len(rects) - 1):
-            assert rects[i].right() <= rects[i + 1].left() + 1
+        for i in range(len(positions) - 1):
+            x1, _, w1, _ = positions[i]
+            x2, _, _, _ = positions[i + 1]
+            assert x1 + w1 <= x2 + 1
+
+        # Buttons should start after crop rect right edge
+        assert positions[0][0] > crop_right
 
     def test_toolbar_icon_names(self):
         """Verify toolbar icon names are correct (5 icons)."""

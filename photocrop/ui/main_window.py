@@ -15,7 +15,7 @@ import copy
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QShortcut
+from PySide6.QtGui import QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -45,26 +45,20 @@ from photocrop.ui.export_dialog import ExportDialog
 from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
 from photocrop.ui.icons import get_colored_svg_path, get_icon
 from photocrop.ui.image_list_panel import ImageListPanel
+from photocrop.ui.press_button import PressButton
 from photocrop.ui.single_view_panel import SingleViewPanel
 from photocrop.ui.state import AppState, SessionState
-from photocrop.ui.theme import theme
+from photocrop.ui.theme import FONT_DISPLAY, FONT_FAMILY, FontSize, FontWeight, theme
 from photocrop.ui.toast import show_toast
 
 # ============================================================
 # 常量
 # ============================================================
 
-FONT_DISPLAY = (
-    "SF Pro Display, Helvetica Neue, Helvetica, Arial, sans-serif"
-)
-FONT_BODY = (
-    "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
-)
-
 DETECTOR_OPTIONS = [
-    ("CV（默认）", "cv"),
-    ("增强 CV", "enhanced-cv"),
-    ("组合检测", "combined"),
+    ("CV (Default)", "cv"),
+    ("Enhanced CV", "enhanced-cv"),
+    ("Combined", "combined"),
     ("YOLO-World", "yolo-world"),
 ]
 
@@ -77,34 +71,23 @@ DETECTOR_TOOLTIPS = {
 
 
 # ============================================================
-# BrandIcon — 左上角双层方框品牌图标
+# BrandIcon — SVG 品牌图标（设计规范 §4 元素 1）
 # ============================================================
 
 class BrandIcon(QWidget):
-    """双层方框品牌图标"""
+    """SVG 双层方框品牌图标"""
 
-    def __init__(self, size: int = 18, opacity: float = 1.0, parent=None):
+    def __init__(self, size: int = 20, opacity: float = 1.0, parent=None):
         super().__init__(parent)
         self.setFixedSize(size, size)
         self._opacity = opacity
+        self._icon_name = "brand-logo-large" if size > 30 else "brand-logo"
 
     def paintEvent(self, _event):
+        icon = get_icon(self._icon_name, theme.colors.text)
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setOpacity(self._opacity)
-        c = theme.colors.text
-        pen = QPen(QColor(c), 2.0)
-        p.setPen(pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        s = self.width() - 2
-        p.drawRect(1, 1, s, s)
-        pen.setColor(QColor(c))
-        pen.setWidthF(1.5)
-        p.setOpacity(self._opacity * 0.5)
-        p.setPen(pen)
-        inner_offset = self.width() // 6
-        inner_size = self.width() - inner_offset * 2
-        p.drawRect(inner_offset, inner_offset, inner_size, inner_size)
+        icon.paint(p, self.rect())
         p.end()
 
 
@@ -215,7 +198,7 @@ class MainWindow(QMainWindow):
 
     def _build_toolbar(self, parent: QWidget) -> None:
         layout = QHBoxLayout(parent)
-        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setContentsMargins(12, 0, 12, 0)
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
@@ -223,8 +206,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._brand_icon)
 
         self._brand_text = QLabel(
-            '<span style="font-weight:300;letter-spacing:0.06em">Photo</span>'
-            '<span style="font-weight:600;letter-spacing:0.01em">Crop</span>'
+            f'<span style="font-family:{FONT_DISPLAY};font-size:{FontSize.BRAND}px;'
+            f'font-weight:300;letter-spacing:0.06em">Photo</span>'
+            f'<span style="font-family:{FONT_DISPLAY};font-size:{FontSize.BRAND}px;'
+            f'font-weight:{FontWeight.SEMIBOLD};letter-spacing:0.01em">Crop</span>'
         )
         self._brand_text.setCursor(Qt.CursorShape.PointingHandCursor)
         self._brand_text.mousePressEvent = lambda _: self._view_coord.show_empty()
@@ -235,42 +220,51 @@ class MainWindow(QMainWindow):
         sep.setObjectName("toolbarSep")
         layout.addWidget(sep)
 
-        self._btn_load = QPushButton("+ Import")
+        self._btn_load = PressButton("Import")
         self._btn_load.setProperty("toolbar", "true")
+        self._btn_load.setIconSize(QSize(14, 14))
         layout.addWidget(self._btn_load)
 
         self._combo_detector = QComboBox()
         for label, _key in DETECTOR_OPTIONS:
             self._combo_detector.addItem(label)
         self._combo_detector.setCurrentIndex(0)
-        self._combo_detector.setFixedWidth(120)
+        self._combo_detector.setFixedWidth(130)
         self._combo_detector.setFixedHeight(28)
         self._combo_detector.currentIndexChanged.connect(self._on_detector_changed)
+        # 强制设置弹出视图样式（Qt 弹出窗口不继承父 QSS）
+        view = self._combo_detector.view()
+        view.setStyleSheet(
+            f"QAbstractItemView {{ background: {theme.colors.surface}; color: {theme.colors.text};"
+            f" border: 1px solid {theme.colors.border_strong}; border-radius: 8px; padding: 4px; }}"
+            f"QAbstractItemView::item {{ padding: 6px 12px; border-radius: 4px; min-height: 28px; }}"
+            f"QAbstractItemView::item:selected {{ background: {theme.colors.accent_hover}; }}"
+            f"QAbstractItemView::item:hover {{ background: {theme.colors.hover_bg}; }}"
+        )
         layout.addWidget(self._combo_detector)
-        # 初始 tooltip
         self._update_detector_tooltip()
 
-        self._btn_detect = QPushButton("Detect")
+        self._btn_detect = PressButton("Detect")
         self._btn_detect.setProperty("toolbar", "true")
+        self._btn_detect.setIconSize(QSize(14, 14))
         self._btn_detect.setEnabled(False)
         layout.addWidget(self._btn_detect)
 
-        # Max 数量紧挨 Detect，间距 2px 视觉分组
         self._spin_max_count = QSpinBox()
         self._spin_max_count.setRange(1, 10)
-        self._spin_max_count.setValue(4)
-        self._spin_max_count.setFixedWidth(76)
+        self._spin_max_count.setValue(5)
+        self._spin_max_count.setFixedWidth(58)
         self._spin_max_count.setFixedHeight(28)
         self._spin_max_count.setPrefix("Max ")
-        self._spin_max_count.setToolTip("最大检测数量")
+        self._spin_max_count.setToolTip("Maximum detection count")
         layout.addWidget(self._spin_max_count)
 
-        self._btn_clear = QPushButton("Clear")
+        self._btn_clear = PressButton("Clear")
         self._btn_clear.setProperty("toolbar", "true")
+        self._btn_clear.setIconSize(QSize(14, 14))
         self._btn_clear.setEnabled(False)
         layout.addWidget(self._btn_clear)
 
-        # 操作区 / 编辑区分隔
         sep2 = QWidget()
         sep2.setFixedSize(1, 18)
         sep2.setObjectName("toolbarSep")
@@ -278,10 +272,14 @@ class MainWindow(QMainWindow):
 
         self._btn_undo = QPushButton("Undo")
         self._btn_undo.setProperty("toolbar", "true")
+        self._btn_undo.setIconSize(QSize(14, 14))
+        self._btn_undo.setToolTip("Undo (Ctrl+Z)")
         layout.addWidget(self._btn_undo)
 
         self._btn_redo = QPushButton("Redo")
         self._btn_redo.setProperty("toolbar", "true")
+        self._btn_redo.setIconSize(QSize(14, 14))
+        self._btn_redo.setToolTip("Redo (Ctrl+Y)")
         layout.addWidget(self._btn_redo)
 
         # 弹性空间 + 居中 Page Nav
@@ -319,23 +317,32 @@ class MainWindow(QMainWindow):
         self._btn_grid.setCheckable(True)
         self._btn_grid.setChecked(False)
         self._btn_grid.setProperty("toolbar", "true")
+        self._btn_grid.setIconSize(QSize(14, 14))
         layout.addWidget(self._btn_grid)
 
         self._btn_single = QPushButton("Single")
         self._btn_single.setCheckable(True)
         self._btn_single.setProperty("toolbar", "true")
+        self._btn_single.setIconSize(QSize(14, 14))
         layout.addWidget(self._btn_single)
+
+        sep3 = QWidget()
+        sep3.setFixedSize(1, 18)
+        sep3.setObjectName("toolbarSep")
+        layout.addWidget(sep3)
 
         self._btn_theme = QPushButton()
         self._btn_theme.setFixedSize(28, 28)
         self._btn_theme.setIconSize(QSize(16, 16))
         self._btn_theme.setProperty("toolbar", "true")
         self._btn_theme.setProperty("iconOnly", "true")
-        self._btn_theme.setToolTip("切换 Light/Dark 主题")
+        self._btn_theme.setToolTip("Toggle Light/Dark theme")
         layout.addWidget(self._btn_theme)
 
-        self._btn_export = QPushButton("Export")
+        self._btn_export = PressButton("Export")
         self._btn_export.setProperty("export_btn", "true")
+        self._btn_export.setFixedHeight(28)
+        self._btn_export.setIconSize(QSize(14, 14))
         self._btn_export.setEnabled(False)
         layout.addWidget(self._btn_export)
 
@@ -350,8 +357,10 @@ class MainWindow(QMainWindow):
         v.addWidget(icon, 0, Qt.AlignmentFlag.AlignCenter)
 
         brand = QLabel(
-            '<span style="font-size:28px;font-weight:200;letter-spacing:0.08em">Photo</span>'
-            '<span style="font-size:28px;font-weight:500;letter-spacing:0.02em">Crop</span>'
+            f'<span style="font-size:{FontSize.BRAND_LARGE}px;font-weight:{FontWeight.LIGHT};'
+            f'letter-spacing:0.08em">Photo</span>'
+            f'<span style="font-size:{FontSize.BRAND_LARGE}px;font-weight:{FontWeight.SEMIBOLD};'
+            f'letter-spacing:0.02em">Crop</span>'
         )
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
         v.addWidget(brand)
@@ -359,29 +368,44 @@ class MainWindow(QMainWindow):
         self._empty_subtitle = QLabel("SCAN & EXTRACT PHOTOS")
         self._empty_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_subtitle.setStyleSheet(
-            f"font-family: {FONT_BODY}; font-size: 11px; letter-spacing: 0.25em;"
+            f"font-family: {FONT_FAMILY}; font-size: {FontSize.LABEL}px; "
+            f"font-weight: {FontWeight.SEMIBOLD}; letter-spacing: 0.25em;"
         )
         v.addWidget(self._empty_subtitle)
 
-        self._empty_hint = QLabel("拖入图片或点击 + Import 开始")
+        self._empty_hint = QLabel("Drag images here or click Import to start")
         self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_hint.setStyleSheet(
+            f"font-family: {FONT_FAMILY}; font-size: {FontSize.LABEL}px;"
+        )
         v.addWidget(self._empty_hint)
 
-        # 垂直居中偏移补偿：在顶部加弹性空间使内容视觉居中
+        # 设计规范 §6：同 Toolbar Import 按钮但更大 padding（16px 24px）
+        self._empty_import_btn = PressButton("Import")
+        self._empty_import_btn.setIconSize(QSize(14, 14))
+        self._empty_import_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: 1px solid {theme.colors.border};"
+            f" border-radius: 4px; padding: 16px 24px; font-family: {FONT_FAMILY};"
+            f" font-size: {FontSize.BODY}px; color: {theme.colors.text}; }}"
+            f"QPushButton:hover {{ background: {theme.colors.hover_bg};"
+            f" border-color: {theme.colors.border_strong}; }}"
+        )
+        self._empty_import_btn.clicked.connect(self._on_load)
+        v.addWidget(self._empty_import_btn, 0, Qt.AlignmentFlag.AlignCenter)
+
         v.insertStretch(0, 1)
         v.addStretch(1)
         return page
 
     def _build_bottom_bar(self, parent: QWidget) -> None:
         layout = QHBoxLayout(parent)
-        layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 0, 12, 0)
+        layout.setSpacing(0)
 
-        self._lbl_bottom_status = QLabel("Ready")
+        self._lbl_bottom_status = QLabel("Ready · Drag images or press Ctrl+O")
         layout.addWidget(self._lbl_bottom_status)
         layout.addStretch()
 
-        # 分隔线：状态信息 | 缩放控件
         self._zoom_sep = QWidget()
         self._zoom_sep.setFixedSize(1, 16)
         self._zoom_sep.setObjectName("toolbarSep")
@@ -393,24 +417,28 @@ class MainWindow(QMainWindow):
         layout.addSpacing(4)
 
         btn_zoom_in = QPushButton("+")
-        btn_zoom_in.setFixedSize(28, 22)
+        btn_zoom_in.setFixedSize(28, 28)
         btn_zoom_in.clicked.connect(self._on_zoom_in)
         layout.addWidget(btn_zoom_in)
 
+        layout.addSpacing(4)
+
         btn_zoom_out = QPushButton("−")
-        btn_zoom_out.setFixedSize(28, 22)
+        btn_zoom_out.setFixedSize(28, 28)
         btn_zoom_out.clicked.connect(self._on_zoom_out)
         layout.addWidget(btn_zoom_out)
 
         layout.addSpacing(4)
 
         btn_fit = QPushButton("Fit")
-        btn_fit.setFixedSize(50, 22)
+        btn_fit.setFixedSize(50, 28)
         btn_fit.clicked.connect(self._on_zoom_fit)
         layout.addWidget(btn_fit)
 
+        layout.addSpacing(4)
+
         btn_1to1 = QPushButton("1:1")
-        btn_1to1.setFixedSize(50, 22)
+        btn_1to1.setFixedSize(50, 28)
         btn_1to1.clicked.connect(self._on_zoom_1to1)
         layout.addWidget(btn_1to1)
 
@@ -475,6 +503,11 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Z"), self, activated=self._on_undo)
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self, activated=self._on_redo)
         QShortcut(QKeySequence("Ctrl+Y"), self, activated=self._on_redo)
+        QShortcut(QKeySequence("Delete"), self, activated=self._on_delete_selected)
+        QShortcut(QKeySequence("Tab"), self, activated=self._toggle_view)
+        QShortcut(QKeySequence("Plus"), self, activated=self._on_zoom_in)
+        QShortcut(QKeySequence("Equal"), self, activated=self._on_zoom_in)
+        QShortcut(QKeySequence("Minus"), self, activated=self._on_zoom_out)
 
     # ================================================================
     # 主题
@@ -501,44 +534,65 @@ class MainWindow(QMainWindow):
         for bi in self._empty_state.findChildren(BrandIcon):
             bi.update()
 
-        self._brand_text.setStyleSheet(
-            f"font-family: {FONT_DISPLAY}; font-size: 15px; color: {c.text};"
-        )
         self._empty_state.setStyleSheet(f"background: {c.canvas_bg};")
         self._empty_subtitle.setStyleSheet(
-            f"font-family: {FONT_BODY}; font-size: 11px; "
-            f"letter-spacing: 0.25em; color: {c.text_secondary};"
+            f"font-family: {FONT_FAMILY}; font-size: {FontSize.LABEL}px; "
+            f"font-weight: {FontWeight.SEMIBOLD}; letter-spacing: 0.25em; color: {c.text_secondary};"
         )
         self._empty_hint.setStyleSheet(
-            f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
+            f"font-family: {FONT_FAMILY}; font-size: {FontSize.LABEL}px; color: {c.text_secondary};"
         )
         self._lbl_bottom_status.setStyleSheet(
-            f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
+            f"font-family: {FONT_FAMILY}; font-size: {FontSize.LABEL}px; color: {c.text_secondary};"
         )
         self._lbl_zoom.setStyleSheet(
-            f"font-family: {FONT_BODY}; font-size: 11px; color: {c.text_secondary};"
+            f"font-family: {FONT_FAMILY}; font-size: {FontSize.LABEL}px; "
+            f"color: {c.text_secondary};"
         )
 
         for w in self._toolbar.findChildren(QWidget):
             if w.objectName() == "toolbarSep":
                 w.setStyleSheet(f"background: {c.border};")
 
-        # 右侧面板分隔线
         for w in self.findChildren(QWidget):
             if w.objectName() == "rightPanelSep":
                 w.setStyleSheet(f"background: {c.border};")
 
-        icon_color = c.accent if theme.mode == "light" else c.text
+        # 图标颜色：Light 模式用 accent（黑色），Dark 模式用 text（白色）
+        ic = c.accent if theme.mode == "light" else c.text
+
+        # 工具栏按钮图标
+        self._btn_load.setIcon(get_icon("upload", ic))
+        self._btn_detect.setIcon(get_icon("scan-eye", ic))
+        self._btn_clear.setIcon(get_icon("trash", ic))
+        self._btn_undo.setIcon(get_icon("undo", ic))
+        self._btn_redo.setIcon(get_icon("redo", ic))
+        self._btn_grid.setIcon(get_icon("layout-grid", ic))
+        self._btn_single.setIcon(get_icon("image", ic))
         self._btn_theme.setIcon(
-            get_icon("sun" if theme.mode == "light" else "moon", icon_color)
+            get_icon("sun" if theme.mode == "light" else "moon", ic)
         )
-        self._btn_prev_page.setIcon(get_icon("chevron-left", icon_color))
-        self._btn_next_page.setIcon(get_icon("chevron-right", icon_color))
-        self._lbl_page_info.setStyleSheet(
-            f"color: {c.text_secondary}; font-family: {FONT_BODY}; font-size: 13px;"
+        self._btn_export.setIcon(get_icon("download", ic))
+
+        # 空状态 Import 按钮（16px 24px padding）
+        self._empty_import_btn.setIcon(get_icon("upload", ic))
+        self._empty_import_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: 1px solid {c.border};"
+            f" border-radius: 4px; padding: 16px 24px; font-family: {FONT_FAMILY};"
+            f" font-size: {FontSize.BODY}px; color: {c.text}; }}"
+            f"QPushButton:hover {{ background: {c.hover_bg};"
+            f" border-color: {c.border_strong}; }}"
         )
 
-        # ComboBox 下拉箭头 SVG 图标
+        # Page 导航图标
+        self._btn_prev_page.setIcon(get_icon("chevron-left", ic))
+        self._btn_next_page.setIcon(get_icon("chevron-right", ic))
+        self._lbl_page_info.setStyleSheet(
+            f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
+            f"font-size: {FontSize.BODY}px;"
+        )
+
+        # ComboBox 下拉箭头 SVG 图标 + 弹出视图样式
         arrow_color = c.text_secondary if theme.mode == "light" else c.text
         arrow_path = get_colored_svg_path("chevron-down", arrow_color)
         if arrow_path:
@@ -546,10 +600,14 @@ class MainWindow(QMainWindow):
                 f"QComboBox::down-arrow {{ image: url('{arrow_path}'); "
                 f"width: 14px; height: 14px; }}"
             )
-
-        # SpinBox / ComboBox 与工具栏按钮底部对齐
-        self._spin_max_count.setStyleSheet(
-            "QSpinBox { padding: 4px 6px; min-height: 22px; }"
+        # 强制更新弹出视图样式（Qt 弹出窗口不继承父 QSS）
+        view = self._combo_detector.view()
+        view.setStyleSheet(
+            f"QAbstractItemView {{ background: {c.surface}; color: {c.text};"
+            f" border: 1px solid {c.border_strong}; border-radius: 8px; padding: 4px; }}"
+            f"QAbstractItemView::item {{ padding: 6px 12px; border-radius: 4px; min-height: 28px; }}"
+            f"QAbstractItemView::item:selected {{ background: {c.accent_hover}; }}"
+            f"QAbstractItemView::item:hover {{ background: {c.hover_bg}; }}"
         )
 
     def _on_theme_changed(self, _colors: object) -> None:
@@ -580,10 +638,10 @@ class MainWindow(QMainWindow):
 
     def _on_load(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "选择图片或 PDF", "",
-            "所有支持格式 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp *.pdf);;"
-            "图片 (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;"
-            "PDF (*.pdf);;所有文件 (*)",
+            self, "Select Images or PDF", "",
+            "All Supported (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp *.pdf);;"
+            "Images (*.jpg *.jpeg *.png *.bmp *.tiff *.tif *.webp);;"
+            "PDF (*.pdf);;All Files (*)",
         )
         if not paths:
             return
@@ -605,7 +663,7 @@ class MainWindow(QMainWindow):
         if self._app_state.current_session:
             self._session_ctrl.save_current_state(
                 self._canvas.crop_rects,
-                self._canvas._undo_manager.serialize(),
+                self._canvas.get_undo_snapshot(),
             )
         sess = self._session_ctrl.load_file(path_str)
         if not sess:
@@ -633,10 +691,10 @@ class MainWindow(QMainWindow):
             return
         self._session_ctrl.save_current_state(
             self._canvas.crop_rects,
-            self._canvas._undo_manager.serialize(),
+            self._canvas.get_undo_snapshot(),
         )
         success = self._session_ctrl.restore_session(
-            key, self._canvas, self._canvas._undo_manager,
+            key, self._canvas,
         )
         if not success:
             return
@@ -651,7 +709,7 @@ class MainWindow(QMainWindow):
         if self._view_coord.is_empty:
             self._view_coord.show_grid()
             self._canvas.fitInView(
-                self._canvas._scene.sceneRect(),
+                self._canvas.scene_rect(),
                 Qt.AspectRatioMode.KeepAspectRatio,
             )
         self._update_button_states()
@@ -661,6 +719,11 @@ class MainWindow(QMainWindow):
         detector = self._selected_detector
         max_count = self._spin_max_count.value()
 
+        # 检测中状态：图标变为 Spinner，文字变为 "Detecting..."（设计规范 §4 元素 5）
+        self._btn_detect.setText("Detecting...")
+        self._btn_detect.setEnabled(False)
+        self._start_detect_spinner()
+
         sess = self._app_state.current_session
         if sess is not None and sess.is_pdf and sess.page_count > 1:
             if not self._view_coord.is_grid:
@@ -668,9 +731,9 @@ class MainWindow(QMainWindow):
             self._extracted_panel.clear_incremental()
             self._extracted_panel.set_global_mode(True)
             self._batch_progress = QProgressDialog(
-                "正在检测所有 PDF 页面...", "取消", 0, sess.page_count, self,
+                "Detecting all PDF pages...", "Cancel", 0, sess.page_count, self,
             )
-            self._batch_progress.setWindowTitle("批量检测")
+            self._batch_progress.setWindowTitle("Batch Detection")
             self._batch_progress.setWindowModality(Qt.WindowModality.WindowModal)
             self._batch_progress.setMinimumDuration(0)
             self._batch_progress.setValue(0)
@@ -678,7 +741,7 @@ class MainWindow(QMainWindow):
             self._detect_ctrl.detect_all_pages(sess.key, detector, max_count)
             return
 
-        self._app_state.status_message.emit(f"正在检测（{detector}）...")
+        self._app_state.status_message.emit(f"Detecting ({detector})...")
         self._canvas.show_loading("Detecting photos...")
         QApplication.processEvents()
         try:
@@ -686,14 +749,38 @@ class MainWindow(QMainWindow):
                 detector, max_count, self._canvas,
             )
             self._canvas.hide_loading()
-            self._app_state.status_message.emit(f"检测到 {count} 个照片")
+            self._app_state.status_message.emit(f"Detected {count} photos")
             show_toast(f"Detected {count} photos", self)
+            self._stop_detect_spinner()
             self._update_button_states()
             self._update_image_list_panel()
         except ImportError as e:
-            QMessageBox.critical(self, "缺少依赖", str(e))
-        except Exception as e:
-            QMessageBox.critical(self, "检测失败", str(e))
+            self._stop_detect_spinner()
+            QMessageBox.critical(self, "Missing Dependency", str(e))
+        except (ValueError, RuntimeError, OSError) as e:
+            self._stop_detect_spinner()
+            QMessageBox.critical(self, "Detection Failed", str(e))
+
+    def _start_detect_spinner(self) -> None:
+        """检测中：旋转 Detect 按钮图标"""
+        self._detect_spinner_angle = 0
+        self._detect_spinner_timer = QTimer()
+        ic = theme.colors.accent if theme.mode == "light" else theme.colors.text
+        def rotate():
+            self._detect_spinner_angle = (self._detect_spinner_angle + 30) % 360
+            icon = get_icon("scan-eye", ic)
+            self._btn_detect.setIcon(icon)
+        self._detect_spinner_timer.timeout.connect(rotate)
+        self._detect_spinner_timer.start(100)
+
+    def _stop_detect_spinner(self) -> None:
+        """检测结束：恢复 Detect 按钮"""
+        if hasattr(self, '_detect_spinner_timer') and self._detect_spinner_timer:
+            self._detect_spinner_timer.stop()
+            self._detect_spinner_timer = None
+        self._btn_detect.setText("Detect")
+        ic = theme.colors.accent if theme.mode == "light" else theme.colors.text
+        self._btn_detect.setIcon(get_icon("scan-eye", ic))
 
     def _on_batch_page_done(self, session_key: str, page_idx: int, crop_rects: list) -> None:
         sess = self._app_state.get_session(session_key)
@@ -714,28 +801,29 @@ class MainWindow(QMainWindow):
     def _on_batch_finished(self, session_key: str, total_rects: int) -> None:
         if hasattr(self, '_batch_progress') and self._batch_progress:
             self._batch_progress.close()
+        self._stop_detect_spinner()
         sess = self._app_state.get_session(session_key)
         if sess:
             self._app_state.status_message.emit(
-                f"检测完成: {sess.page_count} 页, {total_rects} 个裁剪框"
+                f"Detection complete: {sess.page_count} pages, {total_rects} crops"
             )
             self._update_image_list_panel()
             self._update_button_states()
             current_page = sess.current_page
             current_rects = sess.page_crop_rects.get(current_page, [])
-            self._canvas._restore_rects(current_rects)
-            self._canvas._push_undo_state()
+            self._canvas.restore_rects_from_list(current_rects)
+            self._canvas.push_undo_state()
             self._refresh_global_preview(sess, current_page)
 
     def _on_export(self) -> None:
         self._session_ctrl.save_current_state(
             self._canvas.crop_rects,
-            self._canvas._undo_manager.serialize(),
+            self._canvas.get_undo_snapshot(),
         )
         current_crops = len(self._canvas.crop_rects)
         total_crops = self._app_state.total_crop_count
         if current_crops == 0 and total_crops == 0:
-            QMessageBox.information(self, "导出", "没有裁剪框可以导出")
+            QMessageBox.information(self, "Export", "No crops to export")
             return
 
         dialog = ExportDialog(current_crops, total_crops, self)
@@ -744,25 +832,25 @@ class MainWindow(QMainWindow):
         config = dialog.get_export_config()
         output_dir = config["output_dir"]
         if not output_dir:
-            QMessageBox.warning(self, "导出", "请选择输出目录")
+            QMessageBox.warning(self, "Export", "Please select an output directory")
             return
 
         try:
             exported, errors = self._export_ctrl.export(config, self._canvas)
-            msg = f"成功导出 {exported} 张照片\n→ {output_dir}"
+            msg = f"Successfully exported {exported} photos\n→ {output_dir}"
             if errors:
-                msg += f"\n\n失败 {len(errors)} 张:\n" + "\n".join(errors)
-            QMessageBox.information(self, "导出完成", msg)
+                msg += f"\n\nFailed {len(errors)}:\n" + "\n".join(errors)
+            QMessageBox.information(self, "Export Complete", msg)
             show_toast(f"Export complete: {exported} images to {output_dir}", self)
             self._app_state.status_message.emit(
-                f"导出完成: {exported} 张 → {output_dir}"
+                f"Export complete: {exported} images → {output_dir}"
             )
-        except Exception as e:
-            QMessageBox.critical(self, "导出失败", str(e))
+        except (ValueError, RuntimeError, OSError) as e:
+            QMessageBox.critical(self, "Export Failed", str(e))
 
     def _on_clear(self) -> None:
         self._canvas.clear_crops()
-        self._app_state.status_message.emit("已清除所有裁剪框")
+        self._app_state.status_message.emit("All crops cleared")
         self._update_button_states()
 
         pdf_sess = self._session_ctrl.get_current_pdf_session()
@@ -830,6 +918,18 @@ class MainWindow(QMainWindow):
         self._canvas.redo()
         self._update_button_states()
 
+    def _on_delete_selected(self) -> None:
+        """Delete 键删除选中裁剪框"""
+        self._canvas.remove_selected()
+        self._update_button_states()
+
+    def _toggle_view(self) -> None:
+        """Tab 键在 Grid/Single 之间切换"""
+        if self._view_coord.is_single:
+            self._view_coord.show_grid()
+        elif self._view_coord.is_grid:
+            self._on_single_clicked()
+
     def _on_selection_changed(self) -> None:
         selected = self._canvas.selected_items
         if not selected:
@@ -850,7 +950,7 @@ class MainWindow(QMainWindow):
         self._canvas.rects_changed.emit()
 
     def _on_crop_options_finished(self) -> None:
-        self._canvas._push_undo_state()
+        self._canvas.push_undo_state()
         self._update_button_states()
 
     def _on_aspect_ratio_changed(self, ratio: float) -> None:
@@ -879,7 +979,7 @@ class MainWindow(QMainWindow):
             def _do_select() -> None:
                 items = self._canvas.crop_items
                 if 0 <= local_idx < len(items):
-                    self._canvas._scene.clearSelection()
+                    self._canvas.clear_scene_selection()
                     items[local_idx].setSelected(True)
 
             if self._app_state._current_key != target_key:
@@ -891,7 +991,7 @@ class MainWindow(QMainWindow):
         else:
             items = self._canvas.crop_items
             if 0 <= index < len(items):
-                self._canvas._scene.clearSelection()
+                self._canvas.clear_scene_selection()
                 items[index].setSelected(True)
 
     def _on_extracted_crop_delete(self, index: int) -> None:
@@ -909,13 +1009,7 @@ class MainWindow(QMainWindow):
             def _do_delete() -> None:
                 items = self._canvas.crop_items
                 if 0 <= local_idx < len(items):
-                    item = items[local_idx]
-                    if item in self._canvas._crop_items:
-                        self._canvas._crop_items.remove(item)
-                    if item.scene():
-                        self._canvas._scene.removeItem(item)
-                    self._canvas._push_undo_state()
-                    self._canvas.rects_changed.emit()
+                    self._canvas.remove_crop_item(items[local_idx])
 
             if self._app_state._current_key != target_key:
                 self._image_list_panel.select_image(target_key)
@@ -926,13 +1020,7 @@ class MainWindow(QMainWindow):
         else:
             items = self._canvas.crop_items
             if 0 <= index < len(items):
-                item = items[index]
-                if item in self._canvas._crop_items:
-                    self._canvas._crop_items.remove(item)
-                if item.scene():
-                    self._canvas._scene.removeItem(item)
-                self._canvas._push_undo_state()
-                self._canvas.rects_changed.emit()
+                self._canvas.remove_crop_item(items[index])
 
     def _on_single_clicked(self) -> None:
         """用户点击底部 Single 按钮 — 切换到单张预览视图"""
@@ -956,7 +1044,7 @@ class MainWindow(QMainWindow):
     def _on_single_view_selection(self, index: int) -> None:
         items = self._canvas.crop_items
         if 0 <= index < len(items):
-            self._canvas._scene.clearSelection()
+            self._canvas.clear_scene_selection()
             items[index].setSelected(True)
 
     def _on_image_loaded(self) -> None:
@@ -965,7 +1053,7 @@ class MainWindow(QMainWindow):
         if self._view_coord.is_empty:
             self._view_coord.show_grid()
             self._canvas.fitInView(
-                self._canvas._scene.sceneRect(),
+                self._canvas.scene_rect(),
                 Qt.AspectRatioMode.KeepAspectRatio,
             )
 
@@ -979,15 +1067,15 @@ class MainWindow(QMainWindow):
         crop_count = len(self._canvas.crop_rects)
         if is_pdf:
             self._app_state.status_message.emit(
-                f"{img_count} images · PDF {sess.page_count} pages"
+                f"{img_count} active · PDF {sess.page_count} pages"
             )
         elif crop_count > 0:
             self._app_state.status_message.emit(
-                f"{img_count} images · {crop_count} crops"
+                f"{img_count} active · {crop_count} crops"
             )
         else:
             self._app_state.status_message.emit(
-                f"{img_count} images"
+                f"{img_count} active"
             )
 
     def _on_detection_done(self, _count: int) -> None:
@@ -997,7 +1085,7 @@ class MainWindow(QMainWindow):
     def _on_rects_changed(self) -> None:
         count = len(self._canvas.crop_rects)
         self._app_state.status_message.emit(
-            f"{self._app_state.session_count} images · {count} crops"
+            f"{self._app_state.session_count} active · {count} crops"
         )
         self._update_button_states()
         self._update_image_list_panel()
@@ -1027,7 +1115,7 @@ class MainWindow(QMainWindow):
         self._btn_next_page.setEnabled(current < total - 1)
 
     def _on_load_error(self, _path: str, error: str) -> None:
-        QMessageBox.critical(self, "加载失败", f"无法打开文件:\n{error}")
+        QMessageBox.critical(self, "Load Failed", f"Cannot open file:\n{error}")
 
     def _on_files_dropped(self, paths: list[str]) -> None:
         """拖拽导入文件"""
@@ -1054,8 +1142,8 @@ class MainWindow(QMainWindow):
         self._btn_detect.setEnabled(has_image)
         self._btn_clear.setEnabled(has_rects)
         self._btn_export.setEnabled(has_rects)
-        self._btn_undo.setEnabled(self._canvas._undo_manager.can_undo())
-        self._btn_redo.setEnabled(self._canvas._undo_manager.can_redo())
+        self._btn_undo.setEnabled(self._canvas.can_undo())
+        self._btn_redo.setEnabled(self._canvas.can_redo())
 
     def _update_image_list_panel(self) -> None:
         total_crops = 0
@@ -1114,7 +1202,7 @@ class MainWindow(QMainWindow):
     def _on_zoom_fit(self) -> None:
         if self._canvas.source_image:
             self._canvas.fitInView(
-                self._canvas._scene.sceneRect(),
+                self._canvas.scene_rect(),
                 Qt.AspectRatioMode.KeepAspectRatio,
             )
             self._update_zoom_label()

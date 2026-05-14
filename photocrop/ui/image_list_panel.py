@@ -23,13 +23,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from photocrop.ui.utils import pil_to_pixmap
-
 # ============================================================
 # 默认样式常量（初始化时使用，set_theme 后会被覆盖）
 # ============================================================
-
-FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
+from photocrop.ui.theme import FONT_FAMILY, FontSize, FontWeight
+from photocrop.ui.utils import pil_to_pixmap
 
 
 @dataclass
@@ -43,6 +41,7 @@ class _PanelColors:
     selected_bg: str = "rgba(0, 0, 0, 0.08)"
     hover_bg: str = "rgba(0, 0, 0, 0.03)"
     thumb_bg: str = "#E0E0E0"
+    danger: str = "#CC0000"
 
 
 class ImageListPanel(QWidget):
@@ -104,10 +103,10 @@ class ImageListPanel(QWidget):
             background-color: {c.bg};
             color: {c.text_secondary};
             font-family: {FONT_FAMILY};
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            padding-left: 10px;
+            font-size: {FontSize.LABEL}px;
+            font-weight: {FontWeight.SEMIBOLD};
+            letter-spacing: 0.15em;
+            padding-left: 12px;
             border-bottom: 1px solid {c.border};
         """)
         self._list.setStyleSheet(f"""
@@ -120,9 +119,9 @@ class ImageListPanel(QWidget):
                 color: {c.text};
             }}
             QListWidget::item {{
-                padding: 6px 8px;
+                padding: 4px 8px;
                 border-left: 3px solid transparent;
-                min-height: 50px;
+                min-height: 44px;
             }}
             QListWidget::item:selected {{
                 background-color: {c.selected_bg};
@@ -237,6 +236,7 @@ class ImageListPanel(QWidget):
             selected_bg=colors.selected_bg,
             hover_bg=colors.hover_bg,
             thumb_bg=colors.border if colors.accent == "#000000" else "#3A3A3A",
+            danger=colors.danger,
         )
         self._apply_styles()
 
@@ -271,7 +271,7 @@ class ImageListPanel(QWidget):
         self._path_keys.append(key)
 
         item_widget = QWidget()
-        item_widget.setFixedHeight(56)
+        item_widget.setFixedHeight(48)
         item_layout = QVBoxLayout(item_widget)
         item_layout.setContentsMargins(4, 4, 4, 4)
         item_layout.setSpacing(2)
@@ -304,7 +304,7 @@ class ImageListPanel(QWidget):
         item_layout.addWidget(count_label)
 
         item = QListWidgetItem()
-        item.setSizeHint(QSize(200, 56))
+        item.setSizeHint(QSize(200, 48))
         self._list.addItem(item)
         self._list.setItemWidget(item, item_widget)
 
@@ -469,7 +469,7 @@ class ImageListPanel(QWidget):
                 background-color: {c.bg};
                 color: {c.text};
                 border: 1px solid {c.border};
-                border-radius: 6px;
+                border-radius: 8px;
                 padding: 4px;
                 font-family: {FONT_FAMILY};
                 font-size: 12px;
@@ -477,13 +477,15 @@ class ImageListPanel(QWidget):
             QMenu::item {{
                 padding: 6px 16px;
                 border-radius: 4px;
+                min-height: 28px;
             }}
             QMenu::item:selected {{
                 background-color: {c.hover_bg};
             }}
         """)
-        action_detect = menu.addAction("重新检测")
-        action_remove = menu.addAction("从列表移除")
+        from photocrop.ui.icons import get_icon
+        action_detect = menu.addAction(get_icon("refresh-cw", c.text_secondary), "Re-detect")
+        action_remove = menu.addAction(get_icon("trash", c.danger), "Remove")
 
         chosen = menu.exec(self._list.mapToGlobal(pos))
         if chosen == action_detect:

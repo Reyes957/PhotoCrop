@@ -1,5 +1,73 @@
 # Changelog
 
+## v0.7.0 — 架构重构：控制器层 + 全局状态 + 文档同步（2026-05-14）
+
+### 架构变更
+
+- **控制器层** — 5 个控制器将业务逻辑从 MainWindow 中剥离，职责单一、可独立测试
+  - `DetectionController` — 检测流程（单图 + 批量 PDF，QThreadPool）
+  - `ExportController` — 导出流程（模板填充、进度信号）
+  - `SessionController` — Session 生命周期（文件加载、页面切换、保存/恢复）
+  - `ThemeController` — 主题切换（订阅者模式，自动分发颜色）
+  - `ViewCoordinator` — 视图切换（Empty/Grid/Single，opacity 动画过渡）
+- **AppState 全局状态** — Observable 状态容器，所有 UI 组件和 Controller 通过信号订阅数据变化
+- **文档全面同步** — 10 个 MD/TOML 文件对齐代码实际状态
+
+### 从 v0.6.4 继承的变更
+
+本版本包含 v0.6.4 的全部变更（6 项 Bug 修复 + 新功能），详见下方 v0.6.4 条目。
+
+---
+
+## v0.6.4 — 第三轮修复：6 项 Bug 修复 + 新功能（2026-05-12）
+
+### 新增文件
+
+- **`ui/state.py`** — AppState 全局状态管理器（Single Source of Truth），SessionState + AppState 双层结构
+- **`ui/controllers/`** — UI 控制器层（5 个控制器），负责业务逻辑编排，与 Qt Widget 解耦
+  - `detection_controller.py` — 检测流程（单图 + 批量 PDF），QThreadPool 后台线程
+  - `export_controller.py` — 导出流程（模板填充、单页/全部导出、进度信号）
+  - `session_controller.py` — Session 生命周期（文件加载、页面切换、保存/恢复）
+  - `theme_controller.py` — 主题切换控制器（订阅者模式，自动分发颜色）
+  - `view_coordinator.py` — 视图切换协调器（Empty/Grid/Single，opacity 动画过渡）
+- **`ui/press_button.py`** — PressButton 组件，按下 scale(0.97) 缩放动画（80ms）
+- **`ui/toast.py`** — Toast 通知组件（滑入 300ms + 停留 2.5s + 淡出 200ms，最多 3 个堆叠）
+- **11 个新 SVG 图标** — brand-logo、brand-logo-large、download、image、layout-grid、moon、redo、refresh-cw、scan-eye、trash、undo、upload
+
+### Bug 修复
+
+| # | 问题 | 文件 |
+|---|------|------|
+| 73 | Undo 历史在 Session 切换时丢失 — serialize/deserialize 改为保存完整双栈 | `undo_manager.py` + `state.py` |
+| 74 | 拖拽导入功能缺失 — 新增 dragEnter/Move/Leave/Drop 事件 + 遮罩反馈 | `canvas.py` + `main_window.py` |
+| 75 | Loading 指示器缺失 — canvas 遮罩 + Toast 通知系统 | `canvas.py` + `toast.py` + `main_window.py` |
+| 76 | 主题切换颜色过渡缺失 — 350ms cubic-bezier 插值动画 | `theme.py` |
+| 77 | 检测算法选择器缺少说明 — 每个检测器 Tooltip | `main_window.py` |
+| 78 | 导出对话框表单验证缺失 — 目录验证 + 模板验证 + QSettings 持久化 | `export_dialog.py` |
+
+### 新功能
+
+- **AppState 全局状态** — Observable 状态容器，所有 UI 组件和 Controller 通过信号订阅数据变化
+- **控制器架构** — 5 个控制器将业务逻辑从 MainWindow 中剥离，职责单一、可独立测试
+- **PressButton 动画** — 按钮按下 scale(0.97) + 80ms 缓动
+- **主题切换动画** — 350ms cubic-bezier(0.4, 0, 0.2, 1) 颜色插值过渡
+- **Toast 通知** — 非模态滑入通知，最多 3 个堆叠
+- **拖拽导入** — 支持 8 种格式拖拽到画布，半透明遮罩 + 虚线框反馈
+- **检测器 Tooltip** — 检测器下拉框切换时显示详细说明
+- **导出表单验证** — 目录空时按钮置灰 + 红色提示，模板变量实时验证，QSettings 持久化
+
+### UndoManager 序列化变更（向后兼容）
+
+- `serialize()` 返回 JSON 字符串（新格式）而非 dict 列表（旧格式）
+- `deserialize()` 接受 `str | list`，自动识别新旧格式
+
+### 测试
+
+- **6 个新测试文件** — `test_comprehensive_features.py`（106 个测试）、`test_state.py`、`test_export_controller.py`、`test_session_controller.py`、`test_global_preview.py`、`conftest.py`（共享 fixture）
+- **总计 123 个测试通过**
+
+---
+
 ## v0.6.3 — 第二轮设计审查 + Signal/State 一致性修复（2026-05-12）
 
 ### UI 美学/实用性改进（18 项）

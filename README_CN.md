@@ -29,6 +29,8 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 - **多种检测引擎** — 传统 CV（边缘检测 + 形态学）、增强 CV（已废弃）、组合检测器（IoU 投票融合）、YOLO-World 零样本开放词汇检测
 - **可插拔检测器架构** — 基于 ABC 抽象基类和工厂模式，可以随时切换检测器或自己写一个
 - **三种运行模式** — CLI 命令行（写脚本用）、GUI 图形界面（交互编辑）、PDF 批量模式（一键处理整本）
+- **控制器架构** — 5 个专用控制器（检测、导出、Session、主题、视图），业务逻辑与 Qt 控件解耦
+- **全局状态管理** — AppState Observable 状态容器，所有 UI 组件通过信号订阅数据变化
 - **多图像管理** — 左侧面板显示缩略图、文件名、裁剪计数；右键菜单操作
 - **裁剪框属性面板** — 实时编辑 Width/Height/X/Y/Rotation，支持宽高比锁定
 - **裁剪结果预览** — 2 列网格预览，LRU 缓存，点击选中或删除
@@ -40,6 +42,10 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 - **模板系统** — 百分比坐标存储的裁剪模板，跨图片复用
 - **同步与翻转** — 同步选中裁剪框的尺寸；水平/垂直翻转
 - **智能导出** — 自动旋转矫正、去白边、EXIF 元数据写入、多种输出格式
+- **Light/Dark 双主题** — 350ms cubic-bezier 颜色插值过渡动画
+- **Toast 通知** — 非模态滑入通知（滑入 300ms + 停留 2.5s + 淡出 200ms，最多 3 个堆叠）
+- **拖拽导入** — 拖拽文件到画布区域，支持 8 种格式，半透明遮罩反馈
+- **按钮动画** — PressButton 按下 scale(0.97) 微交互
 - **撤销/重做** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y 支持裁剪框操作撤销
 - **多选操作** — Ctrl+Click 加选/减选、Ctrl+A 全选、Tab/Shift+Tab 循环、Esc 取消选中
 - **键盘快捷键** — Ctrl+O（加载）、Ctrl+D（检测）、Ctrl+E（导出）、← →（翻页）
@@ -141,17 +147,28 @@ photocrop/
   │
   ├── ui/              PySide6 图形界面（黑白极简设计）
   │   ├── main_window.py       工具栏 + 状态栏 + 快捷键 + 多图 session
-  │   ├── canvas.py            画布 + 交互裁剪框 + 撤销/重做 + 同步/翻转
+  │   ├── canvas.py            画布 + 交互裁剪框 + 撤销/重做 + 同步/翻转 + 拖拽导入
   │   ├── crop_item.py         可拖拽裁剪框（旋转、手柄、浮动工具栏、宽高比锁定）
-  │   ├── undo_manager.py      撤销/重做状态管理（支持序列化）
+  │   ├── state.py             AppState 全局状态管理器 + SessionState 数据类
+  │   ├── theme.py             ThemeManager 单例（Light/Dark）+ 350ms 过渡动画
+  │   ├── toast.py             Toast 通知组件（非模态、堆叠）
+  │   ├── press_button.py      PressButton 按下缩放动画按钮
+  │   ├── undo_manager.py      撤销/重做状态管理（完整双栈序列化）
   │   ├── session.py           ImageSession 单图会话数据类
   │   ├── image_list_panel.py  左侧图像列表面板（缩略图 + 文件名 + 裁剪计数）
   │   ├── crop_options_panel.py 右侧属性面板（Width/Height/X/Y/Rotation/宽高比）
   │   ├── extracted_images_panel.py 裁剪结果预览（2 列网格 + LRU 缓存）
   │   ├── single_view_panel.py Single View 大图预览
-  │   ├── export_dialog.py     批量导出设置对话框
+  │   ├── export_dialog.py     批量导出设置对话框（表单验证 + QSettings 持久化）
   │   ├── template_manager.py  裁剪框模板管理器（百分比坐标）
-  │   └── utils.py             PIL <-> Qt 图像转换工具函数
+  │   ├── icons.py             SVG 图标加载器（22 个图标，运行时颜色注入 + 缓存）
+  │   ├── utils.py             PIL <-> Qt 图像转换工具函数
+  │   └── controllers/         业务逻辑控制器层（与 Qt 控件解耦）
+  │       ├── detection_controller.py  检测流程（单图 + 批量 PDF，QThreadPool）
+  │       ├── export_controller.py     导出流程（模板填充、进度信号）
+  │       ├── session_controller.py    Session 生命周期（加载、切页、保存/恢复）
+  │       ├── theme_controller.py      主题切换（订阅者模式）
+  │       └── view_coordinator.py      视图切换（Empty/Grid/Single，opacity 动画）
   │
   ├── export/          导出层
   │   ├── cropper.py      裁剪 → 旋转 → 去白边 → 保存

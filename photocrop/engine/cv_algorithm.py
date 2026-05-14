@@ -250,7 +250,6 @@ def detect_photos_in_scene(
             box_gray = np.mean(box_arr, axis=2) if box_arr.ndim == 3 else box_arr
 
             # 照片评分：内容多、纹理丰富、不过度空白
-            np.mean(box_gray)
             std_val = np.std(box_gray)
 
             # 内容分：非空白区域比例

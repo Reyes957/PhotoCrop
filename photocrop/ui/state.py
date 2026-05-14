@@ -27,9 +27,8 @@ if TYPE_CHECKING:
 class SessionState:
     """单个图像/PDF Session 的完整状态
 
-    与 ImageSession（session.py）的区别：
-    - ImageSession 是 MainWindow 内部使用的会话对象，含 LRU 页面缓存
-    - SessionState 是 AppState 管理的全局状态快照，供所有 Controller 共享
+    由 AppState 管理的全局状态快照，供所有 Controller 共享。
+    包含 LRU 页面缓存、预览缓存、裁剪框状态和撤销历史。
     """
 
     key: str                                    # 唯一标识（文件路径或路径+页码）
@@ -45,13 +44,14 @@ class SessionState:
     page_thumbnails: list[Image.Image] = field(default_factory=list)           # list[Image.Image]
     pdf_page_loader: Callable[[int], Image.Image] | None = None  # 由 SessionController 注入
 
-    # 内部页面缓存（与 ImageSession 兼容）
+    # 内部页面缓存
     _page_cache: dict[int, Image.Image] = field(default_factory=dict, repr=False)
+    _page_preview_cache: dict[int, Image.Image] = field(default_factory=dict, repr=False)
     _cache_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     @property
     def current_pdf_page(self) -> int:
-        """与 ImageSession.current_pdf_page 兼容的别名"""
+        """当前 PDF 页码的别名"""
         return self.current_page
 
     @current_pdf_page.setter
@@ -59,10 +59,7 @@ class SessionState:
         self.current_page = value
 
     def get_page_image(self, page_idx: int) -> Image.Image:
-        """按需加载 PDF 页面图像（LRU 缓存，默认保留最近 5 页）
-
-        与 ImageSession.get_page_image() 接口兼容。
-        """
+        """按需加载 PDF 页面图像（LRU 缓存，默认保留最近 5 页）"""
         with self._cache_lock:
             if page_idx in self._page_cache:
                 return self._page_cache[page_idx]
@@ -78,6 +75,39 @@ class SessionState:
                 del self._page_cache[oldest]
             self._page_cache[page_idx] = img
         return img
+
+    def clear_page_cache(self) -> None:
+        """清除所有页面缓存"""
+        self._page_cache.clear()
+
+    def get_page_preview(self, page_idx: int) -> Image.Image | None:
+        """获取页面预览图（小尺寸，用于全局预览面板，不淘汰）
+
+        Returns None if not cached.
+        """
+        return self._page_preview_cache.get(page_idx)
+
+    def set_page_preview(self, page_idx: int, img: Image.Image,
+                         size: tuple[int, int] = (160, 160)) -> None:
+        """缓存页面预览图"""
+        preview = img.copy()
+        preview.thumbnail(size, Image.Resampling.LANCZOS)
+        self._page_preview_cache[page_idx] = preview
+
+    @property
+    def all_crop_rects(self) -> list[CropRect]:
+        """获取所有页面的裁剪框（带 page_num 标记）"""
+        from photocrop.utils.crop_rect import CropRect as CR
+        all_rects: list[CropRect] = []
+        for page_idx in sorted(self.page_crop_rects.keys()):
+            for rect in self.page_crop_rects[page_idx]:
+                rc = CR(
+                    x=rect.x, y=rect.y, width=rect.width,
+                    height=rect.height, rotation_angle=rect.rotation_angle,
+                    source_type=rect.source_type, page_num=page_idx,
+                )
+                all_rects.append(rc)
+        return all_rects
 
 
 class AppState(QObject):

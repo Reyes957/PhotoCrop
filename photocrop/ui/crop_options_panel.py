@@ -23,9 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from photocrop.ui.theme import FONT_FAMILY
 from photocrop.utils.crop_rect import CropRect
-
-FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 
 @dataclass
@@ -68,7 +67,7 @@ class CropOptionsPanel(QWidget):
         self._header = QLabel("CROP OPTIONS")
         layout.addWidget(self._header)
 
-        self._placeholder = QLabel("选择一个裁剪框")
+        self._placeholder = QLabel("Select a crop to edit")
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._placeholder)
 

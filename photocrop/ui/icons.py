@@ -63,6 +63,17 @@ def clear_cache() -> None:
     _cache.clear()
 
 
+def _get_svg_cache_dir() -> Path:
+    """获取 SVG 缓存目录（使用 platformdirs，不在源码目录写入）"""
+    try:
+        from platformdirs import user_cache_dir
+        cache = Path(user_cache_dir("photocrop")) / "svg_cache"
+    except ImportError:
+        cache = Path.home() / ".cache" / "photocrop" / "svg_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    return cache
+
+
 def get_colored_svg_path(name: str, color: str) -> str:
     """生成带颜色的 SVG 文件，返回文件路径供 QSS 的 image: url() 使用。
 
@@ -80,8 +91,7 @@ def get_colored_svg_path(name: str, color: str) -> str:
     svg_data = svg_path.read_text()
     svg_data = svg_data.replace("currentColor", color)
 
-    cache_dir = _ICON_DIR / ".cache"
-    cache_dir.mkdir(exist_ok=True)
+    cache_dir = _get_svg_cache_dir()
     safe_color = color.replace("#", "").replace("(", "").replace(")", "").replace(",", "").replace(" ", "")
     out_path = cache_dir / f"{name}_{safe_color}.svg"
     out_path.write_text(svg_data)
