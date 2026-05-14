@@ -116,6 +116,12 @@ class MainWindow(QMainWindow):
         # 3. UI 构建
         self._setup_ui()
 
+        # 3b. 延迟 fitInView 定时器（避免快速切页时累积多次调用）
+        self._fit_timer = QTimer(self)
+        self._fit_timer.setSingleShot(True)
+        self._fit_timer.setInterval(0)
+        self._fit_timer.timeout.connect(self._do_fit_in_view)
+
         # 4. 视图协调器（UI 构建后初始化，需要引用 widget）
         self._view_coord = ViewCoordinator(
             self._app_state, self._view_stack,
@@ -130,6 +136,12 @@ class MainWindow(QMainWindow):
         self._theme_ctrl.subscribe(self._on_theme_changed)
         self._apply_theme()
         self._update_button_states()
+
+    def showEvent(self, event):
+        """窗口首次显示时清除焦点，避免 QSpinBox 自动获取焦点导致光标闪烁。"""
+        super().showEvent(event)
+        self._spin_max_count.clearFocus()
+        self.setFocus()
 
     # ================================================================
     # UI 构建
@@ -229,7 +241,7 @@ class MainWindow(QMainWindow):
         for label, _key in DETECTOR_OPTIONS:
             self._combo_detector.addItem(label)
         self._combo_detector.setCurrentIndex(0)
-        self._combo_detector.setFixedWidth(130)
+        self._combo_detector.setFixedWidth(150)
         self._combo_detector.setFixedHeight(28)
         self._combo_detector.currentIndexChanged.connect(self._on_detector_changed)
         # 强制设置弹出视图样式（Qt 弹出窗口不继承父 QSS）
@@ -292,8 +304,8 @@ class MainWindow(QMainWindow):
         self._btn_prev_page = QPushButton()
         self._btn_prev_page.setProperty("toolbar", "true")
         self._btn_prev_page.setProperty("iconOnly", "true")
-        self._btn_prev_page.setFixedSize(28, 28)
-        self._btn_prev_page.setIconSize(QSize(14, 14))
+        self._btn_prev_page.setFixedSize(32, 32)
+        self._btn_prev_page.setIconSize(QSize(16, 16))
         pn_layout.addWidget(self._btn_prev_page)
 
         self._lbl_page_info = QLabel("Page 1 / 1")
@@ -304,8 +316,8 @@ class MainWindow(QMainWindow):
         self._btn_next_page = QPushButton()
         self._btn_next_page.setProperty("toolbar", "true")
         self._btn_next_page.setProperty("iconOnly", "true")
-        self._btn_next_page.setFixedSize(28, 28)
-        self._btn_next_page.setIconSize(QSize(14, 14))
+        self._btn_next_page.setFixedSize(32, 32)
+        self._btn_next_page.setIconSize(QSize(16, 16))
         pn_layout.addWidget(self._btn_next_page)
 
         layout.addWidget(self._page_nav_widget)
@@ -572,7 +584,9 @@ class MainWindow(QMainWindow):
         self._btn_theme.setIcon(
             get_icon("sun" if theme.mode == "light" else "moon", ic)
         )
-        self._btn_export.setIcon(get_icon("download", ic))
+        # Export 按钮图标跟随按钮文字颜色（不是通用图标颜色）
+        export_text_color = "#FFFFFF" if theme.mode == "light" else "#1A1A1A"
+        self._btn_export.setIcon(get_icon("download", export_text_color))
 
         # 空状态 Import 按钮（16px 24px padding）
         self._empty_import_btn.setIcon(get_icon("upload", ic))
@@ -1052,10 +1066,18 @@ class MainWindow(QMainWindow):
 
         if self._view_coord.is_empty:
             self._view_coord.show_grid()
-            self._canvas.fitInView(
-                self._canvas.scene_rect(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-            )
+
+        # 延迟 fitInView：先取消上一次未执行的调用，再重启定时器。
+        # _display_image 内部的 fitInView 可能在 viewport 尺寸为 0 时执行（Empty 页面），
+        # 用 singleShot(0) 保证 viewport 就绪后再适配。
+        self._fit_timer.start()
+
+    def _do_fit_in_view(self) -> None:
+        """延迟执行的 fitInView（由 _fit_timer 触发，确保 viewport 已就绪）"""
+        self._canvas.fitInView(
+            self._canvas.scene_rect(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+        )
 
         self._extracted_panel.set_source_image(self._canvas.source_image)
 

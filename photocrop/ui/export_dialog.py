@@ -29,11 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# ============================================================
-# 样式常量
-# ============================================================
-
-FONT_FAMILY = "SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif"
+from photocrop.ui.theme import FONT_FAMILY  # noqa: E402
 
 
 class ExportDialog(QDialog):
@@ -182,7 +178,7 @@ class ExportDialog(QDialog):
 
         # 目录验证提示
         self._lbl_dir_error = QLabel("")
-        self._lbl_dir_error.setStyleSheet("color: #CC0000; font-size: 11px; font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;")
+        self._lbl_dir_error.setStyleSheet(f"color: #CC0000; font-size: 11px; font-family: {FONT_FAMILY};")
         self._lbl_dir_error.setVisible(False)
         layout.addWidget(self._lbl_dir_error)
 
@@ -291,7 +287,7 @@ class ExportDialog(QDialog):
 
         # 模板验证提示
         self._lbl_tpl_error = QLabel("")
-        self._lbl_tpl_error.setStyleSheet("color: #CC0000; font-size: 11px; font-family: SF Pro Text, Helvetica Neue, Helvetica, Arial, sans-serif;")
+        self._lbl_tpl_error.setStyleSheet(f"color: #CC0000; font-size: 11px; font-family: {FONT_FAMILY};")
         self._lbl_tpl_error.setVisible(False)
         layout.addWidget(self._lbl_tpl_error)
 

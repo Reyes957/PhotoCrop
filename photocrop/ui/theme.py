@@ -19,8 +19,10 @@ from PySide6.QtGui import QColor
 # 字体系统（设计规范 §3）
 # ============================================================
 
-FONT_FAMILY = '"SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif'
-FONT_DISPLAY = '"SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif'
+# 不硬编码 "SF Pro Text"（Qt 字体数据库无法识别，会打印警告）。
+# macOS 系统上 "Helvetica Neue" 是 Qt 能正确解析的系统等效字体。
+FONT_FAMILY = '"Helvetica Neue", Helvetica, Arial'
+FONT_DISPLAY = FONT_FAMILY
 
 
 class FontSize:
@@ -356,7 +358,7 @@ QPushButton[export_btn="true"] {{
     color: {"#FFFFFF" if self._mode == "light" else "#1A1A1A"};
     border: none;
     border-radius: 4px;
-    padding: 0 20px;
+    padding: 1px 12px;
     font-weight: {FontWeight.MEDIUM};
     min-height: 28px;
     max-height: 28px;
@@ -364,6 +366,11 @@ QPushButton[export_btn="true"] {{
 }}
 QPushButton[export_btn="true"]:hover {{
     background-color: {c.accent_hover};
+}}
+QPushButton[export_btn="true"]:disabled {{
+    background-color: {c.accent};
+    color: {"#FFFFFF" if self._mode == "light" else "#1A1A1A"};
+    opacity: 0.5;
 }}
 
 /* === QLabel === */

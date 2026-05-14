@@ -4,16 +4,17 @@ ViewCoordinator — 视图切换协调器
 管理 Empty / Grid / Single 三种视图的切换，维护当前视图状态，
 通过 AppState 通知其他组件视图变化。
 
-设计规范 §10 动画 2：视图切换
-- 退出：opacity 1→0，200ms
-- 进入：opacity 0→1，250ms
-- 缓动：cubic-bezier(0.4, 0, 0.2, 1)
+动画策略：截图覆盖法
+- 切换前截取旧页面快照 → 创建覆盖层
+- 立即切换 QStackedWidget 页面（新页面正常渲染）
+- 覆盖层 opacity 1→0 淡出，露出下方新页面
+- 避免在 QGraphicsView 上使用 QGraphicsOpacityEffect（会导致缓存残影）
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, Signal
-from PySide6.QtWidgets import QGraphicsOpacityEffect, QStackedWidget
+from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, Qt, Signal
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel, QStackedWidget
 
 from photocrop.ui.state import AppState
 
@@ -27,6 +28,9 @@ class ViewCoordinator(QObject):
     _VIEW_GRID = 1
     _VIEW_SINGLE = 2
 
+    # 动画时长（ms）
+    _FADE_DURATION = 220
+
     def __init__(self, app_state: AppState, stack: QStackedWidget,
                  btn_grid: object, btn_single: object) -> None:
         super().__init__()
@@ -37,79 +41,66 @@ class ViewCoordinator(QObject):
         self._current = self._VIEW_EMPTY
         self._anims: list = []  # 防止 GC 回收
         self._switching = False  # 防止动画期间重复触发
-
-        # 为每个页面添加 opacity 效果
-        self._effects: list[QGraphicsOpacityEffect] = []
-        for i in range(stack.count()):
-            page = stack.widget(i)
-            eff = QGraphicsOpacityEffect(page)
-            eff.setOpacity(1.0)
-            page.setGraphicsEffect(eff)
-            self._effects.append(eff)
+        self._overlay: QLabel | None = None
 
     def switch_to(self, mode: int) -> None:
         """切换到指定视图（带 fade 动画）"""
         if mode == self._current or self._switching:
             return
 
+        # 清理上一次可能残留的覆盖层
+        if self._overlay is not None:
+            self._overlay.hide()
+            self._overlay.setGraphicsEffect(None)
+            self._overlay.deleteLater()
+            self._overlay = None
+
         self._switching = True
         old_mode = self._current
         self._current = mode
         self._anims.clear()
 
-        # 退出动画：opacity 1→0, 200ms
-        old_eff = self._effects[old_mode]
-        fade_out = QPropertyAnimation(old_eff, b"opacity")
-        fade_out.setDuration(200)
-        fade_out.setEasingCurve(QEasingCurve.Type.BezierSpline)
-        fade_out.setStartValue(1.0)
-        fade_out.setEndValue(0.0)
-        self._anims.append(fade_out)
+        # 1) 截取旧页面快照
+        old_page = self._stack.widget(old_mode)
+        snapshot = old_page.grab()
 
-        def on_fade_out_done():
-            # 清除旧页面的 opacity 效果（避免缓存残留）
-            old_eff.setOpacity(1.0)
-            page_old = self._stack.widget(old_mode)
-            page_old.setGraphicsEffect(None)
+        # 2) 创建覆盖层（叠在 stacked widget 上方）
+        overlay = QLabel(self._stack.parent())
+        overlay.setPixmap(snapshot)
+        overlay.setGeometry(self._stack.geometry())
+        overlay.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        overlay.show()
+        overlay.raise_()
+        self._overlay = overlay
 
-            # 切换页面
-            self._stack.setCurrentIndex(mode)
-            self._state.set_view_mode(mode)
-            self.view_changed.emit(mode)
-            self._btn_grid.setChecked(mode == self._VIEW_GRID)
-            self._btn_single.setChecked(mode == self._VIEW_SINGLE)
+        # 3) 立即切换页面（新页面在覆盖层下方正常渲染）
+        self._stack.setCurrentIndex(mode)
+        self._state.set_view_mode(mode)
+        self.view_changed.emit(mode)
+        self._btn_grid.setChecked(mode == self._VIEW_GRID)
+        self._btn_single.setChecked(mode == self._VIEW_SINGLE)
 
-            # 为新页面创建 fresh opacity effect
-            page_new = self._stack.widget(mode)
-            new_eff = QGraphicsOpacityEffect(page_new)
-            new_eff.setOpacity(0.0)
-            page_new.setGraphicsEffect(new_eff)
-            self._effects[mode] = new_eff
+        # 4) 覆盖层淡出动画 → 露出新页面
+        eff = QGraphicsOpacityEffect(overlay)
+        overlay.setGraphicsEffect(eff)
 
-            # 进入动画：opacity 0→1, 250ms
-            fade_in = QPropertyAnimation(new_eff, b"opacity")
-            fade_in.setDuration(250)
-            fade_in.setEasingCurve(QEasingCurve.Type.BezierSpline)
-            fade_in.setStartValue(0.0)
-            fade_in.setEndValue(1.0)
+        fade = QPropertyAnimation(eff, b"opacity")
+        fade.setDuration(self._FADE_DURATION)
+        fade.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        fade.setStartValue(1.0)
+        fade.setEndValue(0.0)
+        self._anims.append(fade)
 
-            def on_fade_in_done():
-                # 动画结束后清除效果，让页面直接渲染（避免主题切换时缓存问题）
-                new_eff.setOpacity(1.0)
-                page_new.setGraphicsEffect(None)
-                # 重新创建 effect 供下次使用
-                fresh_eff = QGraphicsOpacityEffect(page_new)
-                fresh_eff.setOpacity(1.0)
-                page_new.setGraphicsEffect(fresh_eff)
-                self._effects[mode] = fresh_eff
-                self._switching = False
+        def on_done():
+            overlay.hide()
+            overlay.setGraphicsEffect(None)
+            overlay.deleteLater()
+            self._overlay = None
+            self._switching = False
 
-            fade_in.finished.connect(on_fade_in_done)
-            fade_in.start()
-            self._anims.append(fade_in)
-
-        fade_out.finished.connect(on_fade_out_done)
-        fade_out.start()
+        fade.finished.connect(on_done)
+        fade.start()
 
     def show_empty(self) -> None:
         self.switch_to(self._VIEW_EMPTY)

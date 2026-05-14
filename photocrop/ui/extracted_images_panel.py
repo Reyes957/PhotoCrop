@@ -18,6 +18,7 @@ from PIL import Image
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
@@ -100,11 +101,26 @@ class ExtractedImagesPanel(QWidget):
         """构建 UI 结构"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 0, 10, 10)
-        layout.setSpacing(8)
+        layout.setSpacing(0)
 
-        self._header = QPushButton("EXTRACTED IMAGES  ▾")
+        self._header = QPushButton("EXTRACTED IMAGES")
         self._header.clicked.connect(self._toggle_collapse)
-        layout.addWidget(self._header)
+        self._arrow_label = QLabel("▾")
+        self._arrow_label.setFixedWidth(16)
+        self._arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_row = QWidget()
+        header_layout = QHBoxLayout(header_row)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+        header_layout.addWidget(self._header, 1)
+        header_layout.addWidget(self._arrow_label)
+        layout.addWidget(header_row)
+
+        # 内容容器 — header 固定在上方，动画作用于容器内的 scroll
+        self._content_container = QWidget()
+        container_layout = QVBoxLayout(self._content_container)
+        container_layout.setContentsMargins(0, 6, 0, 0)
+        container_layout.setSpacing(0)
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
@@ -113,11 +129,22 @@ class ExtractedImagesPanel(QWidget):
         self._grid_widget = QWidget()
         self._grid_layout = QGridLayout(self._grid_widget)
         self._grid_layout.setContentsMargins(0, 0, 0, 0)
-        self._grid_layout.setSpacing(8)
+        self._grid_layout.setSpacing(6)
         self._scroll.setWidget(self._grid_widget)
-        layout.addWidget(self._scroll, 1)
+        container_layout.addWidget(self._scroll)
+
+        layout.addWidget(self._content_container, 1)
 
         self._collapsed = False
+        self._collapse_anim = None
+        self._card_anims: list[tuple[QTimer, QPropertyAnimation | None]] = []
+
+        # 分层折叠动画状态
+        self._animating = False
+        self._collapse_card_anims: list[QPropertyAnimation] = []
+        self._collapse_label_anims: list[QPropertyAnimation] = []
+        self._collapse_label_origins: list[tuple[QWidget, int, int, str]] = []
+        self._collapse_card_effects: list[tuple[QWidget, QGraphicsOpacityEffect, str]] = []
 
     def _apply_styles(self) -> None:
         """根据当前 _colors 应用所有样式"""
@@ -127,9 +154,12 @@ class ExtractedImagesPanel(QWidget):
             f"QPushButton {{"
             f"background-color: transparent; color: {c.text_secondary}; "
             f"border: none; text-align: left; font-family: {FONT_FAMILY}; "
-            f"font-size: 11px; font-weight: 600; letter-spacing: 0.5px; padding: 4px 0;"
+            f"font-size: 13px; font-weight: 600; letter-spacing: 0.3px; padding: 4px 0;"
             f"}}"
             f"QPushButton:hover {{ color: {c.text}; }}"
+        )
+        self._arrow_label.setStyleSheet(
+            f"color: {c.text_secondary}; font-size: 13px; background: transparent;"
         )
         self._scroll.setStyleSheet(
             f"QScrollArea {{ background-color: transparent; border: none; }}"
@@ -160,7 +190,7 @@ class ExtractedImagesPanel(QWidget):
         page_label = QLabel(f"  Page {page_idx + 1}")
         page_label.setStyleSheet(
             f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
-            f"font-size: 11px; font-weight: 600; padding: 8px 0 4px 4px; "
+            f"font-size: 11px; font-weight: 600; padding: 10px 0 2px 4px; "
             f"border-top: 1px solid {c.border};"
         )
         row = self._grid_layout.rowCount()
@@ -185,6 +215,7 @@ class ExtractedImagesPanel(QWidget):
             QTimer.singleShot(50, lambda: vbar.setValue(vbar.maximum()))
 
     def clear_incremental(self) -> None:
+        self._clear_card_animations()
         while self._grid_layout.count():
             child = self._grid_layout.takeAt(0)
             if child.widget():
@@ -215,6 +246,7 @@ class ExtractedImagesPanel(QWidget):
     def _do_refresh(self) -> None:
         if self._global_mode:
             return
+        self._clear_card_animations()
         while self._grid_layout.count():
             child = self._grid_layout.takeAt(0)
             if child.widget():
@@ -232,6 +264,7 @@ class ExtractedImagesPanel(QWidget):
 
     def _do_global_refresh(self) -> None:
         c = self._colors
+        self._clear_card_animations()
         while self._grid_layout.count():
             child = self._grid_layout.takeAt(0)
             if child.widget():
@@ -251,7 +284,7 @@ class ExtractedImagesPanel(QWidget):
             highlight = f"color: {c.accent}; font-weight: 700;" if is_current else ""
             page_label.setStyleSheet(
                 f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
-                f"font-size: 11px; font-weight: 600; padding: 8px 0 4px 4px; "
+                f"font-size: 11px; font-weight: 600; padding: 10px 0 2px 4px; "
                 f"border-top: 1px solid {c.border}; {highlight}"
             )
             row = self._grid_layout.rowCount()
@@ -300,7 +333,13 @@ class ExtractedImagesPanel(QWidget):
         card.setGraphicsEffect(eff)
 
         delay = index * 25  # 25ms stagger per card
-        QTimer.singleShot(delay, lambda: self._animate_card_in(eff))
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.setInterval(delay)
+        timer.timeout.connect(lambda e=eff, t=timer: self._animate_card_in(e, t))
+        timer.start()
+        # 暂存占位，动画启动后替换为 QPropertyAnimation
+        self._card_anims.append((timer, None))
 
         card.setStyleSheet(
             f"QWidget {{ background-color: {c.card_bg}; border-radius: 6px; }}"
@@ -390,44 +429,306 @@ class ExtractedImagesPanel(QWidget):
         except (ValueError, RuntimeError, OSError):
             return None
 
-    def _animate_card_in(self, effect: QGraphicsOpacityEffect) -> None:
+    def _animate_card_in(self, effect: QGraphicsOpacityEffect,
+                         timer: QTimer | None = None) -> None:
         """缩略图入场动画（150ms opacity 0→1）"""
+        # 防御：effect 可能已被 Qt 回收（卡片 deleteLater 后 timer 仍触发）
+        try:
+            effect.opacity()
+        except RuntimeError:
+            return
         anim = QPropertyAnimation(effect, b"opacity")
         anim.setDuration(150)
         anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         anim.setStartValue(0.0)
         anim.setEndValue(1.0)
         anim.start()
-        # 保存引用防止 GC
-        if not hasattr(self, '_card_anims'):
-            self._card_anims = []
-        self._card_anims.append(anim)
+        # 更新追踪列表：将对应的 (timer, None) 替换为 (timer, anim)
+        if timer is not None:
+            for i, (t, a) in enumerate(self._card_anims):
+                if t is timer and a is None:
+                    self._card_anims[i] = (t, anim)
+                    return
+        self._card_anims.append((timer, anim))
+
+    def _clear_card_animations(self) -> None:
+        """取消所有卡片入场动画，清除卡片上的 opacity 效果"""
+        for timer, anim in self._card_anims:
+            timer.stop()
+            if anim is not None:
+                anim.stop()
+        self._card_anims.clear()
+        # 清除所有卡片上的 QGraphicsOpacityEffect，避免与 scroll 级别的效果冲突
+        for i in range(self._grid_layout.count()):
+            item = self._grid_layout.itemAt(i)
+            if item and item.widget():
+                try:
+                    item.widget().setGraphicsEffect(None)
+                except RuntimeError:
+                    pass  # widget 已被 Qt 回收
 
     def _toggle_collapse(self) -> None:
-        """折叠/展开动画（200ms max-height + opacity）"""
-        self._collapsed = not self._collapsed
-        self._header.setText(
-            "EXTRACTED IMAGES  ▸" if self._collapsed
-            else "EXTRACTED IMAGES  ▾"
-        )
+        """分层折叠/展开动画
 
-        # 动画：max-height 过渡
-        anim = QPropertyAnimation(self._scroll, b"maximumHeight")
-        anim.setDuration(200)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        if self._collapsed:
-            anim.setStartValue(self._scroll.sizeHint().height())
-            anim.setEndValue(0)
+        折叠序列（~500ms）：
+        1. 缩略图卡片 staggered opacity 渐隐（从右下到左上，25ms 间隔，150ms）
+        2. Page 标签 opacity + translateY 上移淡出（120ms）
+        3. 容器高度平滑收缩至 0（220ms，cubic-bezier(0.4, 0, 0.2, 1)）
+
+        展开序列（反向）：
+        1. 容器高度从 0 展开（220ms）
+        2. Page 标签渐显 + 下移复位（100ms）
+        3. 缩略图卡片 staggered 渐显（从左上到右下，25ms 间隔，150ms）
+        """
+        if self._animating:
+            return
+
+        self._clear_card_animations()
+        collapsing = not self._collapsed
+        self._collapsed = collapsing
+        self._animating = True
+        self._header.setEnabled(False)
+
+        if collapsing:
+            self._play_collapse()
         else:
-            self._scroll.setVisible(True)
-            anim.setStartValue(0)
-            anim.setEndValue(max(self._scroll.sizeHint().height(), 200))
-        anim.finished.connect(
-            lambda: self._scroll.setVisible(not self._collapsed)
-            if self._collapsed else None
+            self._play_expand()
+
+    def _play_collapse(self) -> None:
+        """执行分层收起动画"""
+        self._collapse_card_anims.clear()
+        self._collapse_label_anims.clear()
+        self._collapse_label_origins.clear()
+        self._collapse_card_effects.clear()
+
+        # 收集所有 widget，按网格位置从右下到左上排序
+        cards: list[QWidget] = []
+        labels: list[QWidget] = []
+        for i in range(self._grid_layout.count()):
+            item = self._grid_layout.itemAt(i)
+            if not item or not item.widget():
+                continue
+            w = item.widget()
+            if isinstance(w, QLabel) and w.objectName() != "unitLabel":
+                labels.append(w)
+            else:
+                cards.append(w)
+
+        # 卡片从右下到左上排序：先按 row 降序，再按 col 降序
+        def card_sort_key(w: QWidget) -> tuple:
+            pos = self._grid_layout.getItemPosition(
+                self._grid_layout.indexOf(w)
+            )
+            return (-pos[0], -pos[1])  # row desc, col desc
+
+        cards.sort(key=card_sort_key)
+
+        # --- 阶段 1：卡片 staggered opacity 渐隐 ---
+        card_dur = 150
+        stagger = 25
+        for idx, card in enumerate(cards):
+            eff = QGraphicsOpacityEffect(card)
+            eff.setOpacity(1.0)
+            card.setGraphicsEffect(eff)
+
+            orig_ss = card.styleSheet()
+            self._collapse_card_effects.append((card, eff, orig_ss))
+
+            anim = QPropertyAnimation(eff, b"opacity", self)
+            anim.setDuration(card_dur)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.setStartValue(1.0)
+            anim.setEndValue(0.0)
+            self._collapse_card_anims.append(anim)
+
+            QTimer.singleShot(idx * stagger, anim.start)
+
+        card_total = max(0, len(cards) - 1) * stagger + card_dur
+
+        # --- 阶段 2：Page 标签 opacity + translateY ---
+        label_dur = 120
+        for lbl in labels:
+            eff = QGraphicsOpacityEffect(lbl)
+            eff.setOpacity(1.0)
+            lbl.setGraphicsEffect(eff)
+
+            orig_pos = (lbl.x(), lbl.y())
+            orig_ss = lbl.styleSheet()
+            self._collapse_label_origins.append((lbl, orig_pos[0], orig_pos[1], orig_ss))
+
+            # opacity 动画
+            op_anim = QPropertyAnimation(eff, b"opacity", self)
+            op_anim.setDuration(label_dur)
+            op_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            op_anim.setStartValue(1.0)
+            op_anim.setEndValue(0.0)
+            self._collapse_label_anims.append(op_anim)
+
+            # 模拟 translateY：在 opacity 动画结束时设置偏移
+            def _apply_offset(lbl_ref=lbl, oy=orig_pos[1]):
+                lbl_ref.move(lbl_ref.x(), oy - 8)
+
+            op_anim.finished.connect(_apply_offset)
+
+            QTimer.singleShot(card_total, op_anim.start)
+
+        label_end = card_total + label_dur
+
+        # --- 阶段 3：容器高度收缩 ---
+        container_dur = 220
+        container_h = self._content_container.sizeHint().height()
+
+        self._collapse_anim = QPropertyAnimation(
+            self._content_container, b"maximumHeight", self,
         )
-        anim.start()
-        self._collapse_anim = anim  # prevent GC
+        self._collapse_anim.setDuration(container_dur)
+        self._collapse_anim.setEasingCurve(QEasingCurve.Type.BezierSpline)
+        self._collapse_anim.setStartValue(container_h)
+        self._collapse_anim.setEndValue(0)
+        self._collapse_anim.finished.connect(self._on_collapse_done)
+
+        QTimer.singleShot(label_end, self._collapse_anim.start)
+
+        # 箭头旋转：▾ (180°) → ▸ (0°)
+        self._arrow_label.setText("▸")
+
+    def _on_collapse_done(self) -> None:
+        """折叠全部完成"""
+        self._content_container.setMaximumHeight(16777215)
+        self._content_container.setMinimumHeight(0)
+        self._content_container.setFixedHeight(0)
+        self._scroll.setVisible(False)
+        self._cleanup_collapse_effects()
+        self._finish_animation()
+
+    def _cleanup_collapse_effects(self) -> None:
+        """清除折叠动画产生的 opacity 效果，恢复原始样式"""
+        for card, _eff, orig_ss in self._collapse_card_effects:
+            try:
+                card.setGraphicsEffect(None)
+                card.setStyleSheet(orig_ss)
+            except RuntimeError:
+                pass
+        self._collapse_card_effects.clear()
+
+        for lbl, ox, oy, orig_ss in self._collapse_label_origins:
+            try:
+                lbl.setGraphicsEffect(None)
+                lbl.move(ox, oy)
+                lbl.setStyleSheet(orig_ss)
+            except RuntimeError:
+                pass
+        self._collapse_label_origins.clear()
+
+        self._collapse_card_anims.clear()
+        self._collapse_label_anims.clear()
+
+    def _play_expand(self) -> None:
+        """执行分层展开动画"""
+        self._content_container.setMinimumHeight(0)
+        self._content_container.setMaximumHeight(0)
+        self._scroll.setVisible(True)
+        QApplication.processEvents()
+
+        target_h = self._content_container.sizeHint().height()
+        if target_h <= 0:
+            target_h = max(self.sizeHint().height() - 30, 100)
+
+        container_dur = 220
+        self._collapse_anim = QPropertyAnimation(
+            self._content_container, b"maximumHeight", self,
+        )
+        self._collapse_anim.setDuration(container_dur)
+        self._collapse_anim.setEasingCurve(QEasingCurve.Type.BezierSpline)
+        self._collapse_anim.setStartValue(0)
+        self._collapse_anim.setEndValue(target_h)
+        self._collapse_anim.finished.connect(self._on_expand_container_done)
+        self._collapse_anim.start()
+
+        # 箭头旋转：▸ (0°) → ▾ (180°)
+        self._arrow_label.setText("▾")
+
+    def _on_expand_container_done(self) -> None:
+        """容器展开完成，开始标签和卡片入场动画"""
+        self._content_container.setMaximumHeight(16777215)
+        self._content_container.setMinimumHeight(0)
+
+        cards: list[QWidget] = []
+        labels: list[QWidget] = []
+        for i in range(self._grid_layout.count()):
+            item = self._grid_layout.itemAt(i)
+            if not item or not item.widget():
+                continue
+            w = item.widget()
+            if isinstance(w, QLabel) and w.objectName() != "unitLabel":
+                labels.append(w)
+            else:
+                cards.append(w)
+
+        # 卡片从左上到右下排序
+        def card_sort_key(w: QWidget) -> tuple:
+            pos = self._grid_layout.getItemPosition(
+                self._grid_layout.indexOf(w)
+            )
+            return (pos[0], pos[1])
+
+        cards.sort(key=card_sort_key)
+
+        # --- Page 标签渐显 + 下移复位 ---
+        label_dur = 100
+        for lbl in labels:
+            eff = QGraphicsOpacityEffect(lbl)
+            eff.setOpacity(0.0)
+            lbl.setGraphicsEffect(eff)
+            orig_y = lbl.y()
+            lbl.move(lbl.x(), orig_y - 8)
+
+            op_anim = QPropertyAnimation(eff, b"opacity", self)
+            op_anim.setDuration(label_dur)
+            op_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            op_anim.setStartValue(0.0)
+            op_anim.setEndValue(1.0)
+
+            def _restore_pos(lbl_ref=lbl, oy=orig_y, anim_ref=op_anim):
+                lbl_ref.move(lbl_ref.x(), oy)
+                try:
+                    lbl_ref.setGraphicsEffect(None)
+                except RuntimeError:
+                    pass
+
+            op_anim.finished.connect(_restore_pos)
+            op_anim.start()
+
+        # --- 卡片 staggered 渐显 ---
+        card_dur = 150
+        stagger = 25
+        for idx, card in enumerate(cards):
+            eff = QGraphicsOpacityEffect(card)
+            eff.setOpacity(0.0)
+            card.setGraphicsEffect(eff)
+
+            anim = QPropertyAnimation(eff, b"opacity", self)
+            anim.setDuration(card_dur)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+
+            def _cleanup_card_effect(anim_ref=anim, card_ref=card, eff_ref=eff):
+                try:
+                    card_ref.setGraphicsEffect(None)
+                except RuntimeError:
+                    pass
+
+            anim.finished.connect(_cleanup_card_effect)
+            QTimer.singleShot(idx * stagger, anim.start)
+
+        total = max(0, len(cards) - 1) * stagger + card_dur
+        QTimer.singleShot(total, self._finish_animation)
+
+    def _finish_animation(self) -> None:
+        """动画序列完成，恢复交互"""
+        self._animating = False
+        self._header.setEnabled(True)
 
     def set_theme(self, colors) -> None:
         """更新面板颜色（主题切换时调用）"""

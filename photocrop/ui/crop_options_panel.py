@@ -74,64 +74,91 @@ class CropOptionsPanel(QWidget):
         self._form_widget = QWidget()
         form_layout = QVBoxLayout(self._form_widget)
         form_layout.setContentsMargins(0, 0, 0, 0)
-        form_layout.setSpacing(10)
+        form_layout.setSpacing(6)
 
-        # --- Width ---
+        # --- Size group ---
+        # Width
         row_w = self._create_form_row("Width")
         self._spin_width = QSpinBox()
         self._spin_width.setRange(10, 10000)
-        self._spin_width.setSuffix(" px")
         self._spin_width.valueChanged.connect(self._on_value_changed)
         self._spin_width.editingFinished.connect(self._on_editing_finished)
-        row_w.layout().addWidget(self._spin_width)
+        row_w.layout().addWidget(self._spin_width, 1)
+        unit_w = QLabel("px")
+        unit_w.setObjectName("unitLabel")
+        row_w.layout().addWidget(unit_w)
         form_layout.addWidget(row_w)
 
-        # --- Height ---
+        # Height
         row_h = self._create_form_row("Height")
         self._spin_height = QSpinBox()
         self._spin_height.setRange(10, 10000)
-        self._spin_height.setSuffix(" px")
         self._spin_height.valueChanged.connect(self._on_value_changed)
         self._spin_height.editingFinished.connect(self._on_editing_finished)
-        row_h.layout().addWidget(self._spin_height)
+        row_h.layout().addWidget(self._spin_height, 1)
+        unit_h = QLabel("px")
+        unit_h.setObjectName("unitLabel")
+        row_h.layout().addWidget(unit_h)
         form_layout.addWidget(row_h)
 
-        # --- X ---
+        # --- Separator: Size → Position ---
+        form_layout.addWidget(self._create_separator())
+
+        # --- Position group ---
+        # X
         row_x = self._create_form_row("X")
         self._spin_x = QSpinBox()
         self._spin_x.setRange(0, 10000)
-        self._spin_x.setSuffix(" px")
         self._spin_x.valueChanged.connect(self._on_value_changed)
         self._spin_x.editingFinished.connect(self._on_editing_finished)
-        row_x.layout().addWidget(self._spin_x)
+        row_x.layout().addWidget(self._spin_x, 1)
+        unit_x = QLabel("px")
+        unit_x.setObjectName("unitLabel")
+        row_x.layout().addWidget(unit_x)
         form_layout.addWidget(row_x)
 
-        # --- Y ---
+        # Y
         row_y = self._create_form_row("Y")
         self._spin_y = QSpinBox()
         self._spin_y.setRange(0, 10000)
-        self._spin_y.setSuffix(" px")
         self._spin_y.valueChanged.connect(self._on_value_changed)
         self._spin_y.editingFinished.connect(self._on_editing_finished)
-        row_y.layout().addWidget(self._spin_y)
+        row_y.layout().addWidget(self._spin_y, 1)
+        unit_y = QLabel("px")
+        unit_y.setObjectName("unitLabel")
+        row_y.layout().addWidget(unit_y)
         form_layout.addWidget(row_y)
 
-        # --- Rotation (带 Reset) ---
+        # --- Separator: Position → Rotation ---
+        form_layout.addWidget(self._create_separator())
+
+        # --- Rotation (input on first row, Reset link below) ---
         row_rot = self._create_form_row("Rotation")
         self._spin_rotation = QDoubleSpinBox()
         self._spin_rotation.setRange(-180.0, 180.0)
         self._spin_rotation.setSingleStep(0.5)
         self._spin_rotation.setDecimals(1)
-        self._spin_rotation.setSuffix("°")
         self._spin_rotation.valueChanged.connect(self._on_value_changed)
         self._spin_rotation.editingFinished.connect(self._on_editing_finished)
         row_rot.layout().addWidget(self._spin_rotation, 1)
-
-        self._btn_reset_rotation = QPushButton("Reset")
-        self._btn_reset_rotation.setFixedSize(48, 24)
-        self._btn_reset_rotation.clicked.connect(self._on_reset_rotation)
-        row_rot.layout().addWidget(self._btn_reset_rotation)
+        unit_rot = QLabel("deg")
+        unit_rot.setObjectName("unitLabel")
+        row_rot.layout().addWidget(unit_rot)
         form_layout.addWidget(row_rot)
+
+        self._btn_reset_rotation = QPushButton("Reset to 0")
+        self._btn_reset_rotation.setObjectName("resetLink")
+        self._btn_reset_rotation.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_reset_rotation.clicked.connect(self._on_reset_rotation)
+        reset_row = QWidget()
+        reset_layout = QHBoxLayout(reset_row)
+        reset_layout.setContentsMargins(64, 0, 0, 0)  # 56px label + 8px spacing
+        reset_layout.addWidget(self._btn_reset_rotation)
+        reset_layout.addStretch()
+        form_layout.addWidget(reset_row)
+
+        # --- Separator: Rotation → Aspect ---
+        form_layout.addWidget(self._create_separator())
 
         # --- Aspect Ratio ---
         row_ar = self._create_form_row("Aspect")
@@ -144,6 +171,13 @@ class CropOptionsPanel(QWidget):
         layout.addWidget(self._form_widget)
         self._form_widget.setVisible(False)
         layout.addStretch()
+
+    def _create_separator(self) -> QWidget:
+        """创建细线分隔符（占位，颜色在 _apply_styles 中设置）"""
+        sep = QWidget()
+        sep.setFixedHeight(1)
+        sep.setObjectName("formSep")
+        return sep
 
     def _apply_styles(self) -> None:
         """根据当前 _colors 应用所有样式"""
@@ -187,18 +221,24 @@ class CropOptionsPanel(QWidget):
             f"width: 20px; border: none; border-left: 1px solid {c.border};"
             f"}}"
         )
-        # Reset 按钮
+        # Reset 链接按钮
         self._btn_reset_rotation.setStyleSheet(
             f"QPushButton {{"
             f"background-color: transparent; color: {c.text_secondary}; "
-            f"border: 1px solid {c.border}; border-radius: 4px; "
-            f"font-family: {FONT_FAMILY}; font-size: 11px; padding: 0;"
+            f"border: none; font-family: {FONT_FAMILY}; font-size: 11px; "
+            f"padding: 2px 0; text-decoration: underline;"
             f"}}"
-            f"QPushButton:hover {{ background-color: {c.bg}; border-color: {c.border_strong}; }}"
+            f"QPushButton:hover {{ color: {c.accent}; }}"
         )
-        # 更新所有表单行标签的颜色
+        # 单位标签 + 分隔线 + 表单行标签
         for lbl in self.findChildren(QLabel):
             if lbl in (self._header, self._placeholder):
+                continue
+            if lbl.objectName() == "unitLabel":
+                lbl.setStyleSheet(
+                    f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
+                    f"font-size: 11px; font-weight: 500; min-width: 20px;"
+                )
                 continue
             ss = lbl.styleSheet() or ""
             if "color:" in ss:
@@ -206,6 +246,9 @@ class CropOptionsPanel(QWidget):
             lbl.setStyleSheet(
                 f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; font-size: 12px;"
             )
+        for sep in self._form_widget.findChildren(QWidget):
+            if sep.objectName() == "formSep":
+                sep.setStyleSheet(f"background-color: {c.border};")
 
     # ===== 辅助：创建表单行 =====
 
@@ -217,10 +260,10 @@ class CropOptionsPanel(QWidget):
         row_layout.setSpacing(8)
         lbl = QLabel(label)
         lbl.setFixedWidth(56)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         lbl.setStyleSheet(
             f"color: {c.text_secondary}; font-family: {FONT_FAMILY}; "
-            f"font-size: 12px; padding-left: 2px;"
+            f"font-size: 12px;"
         )
         row_layout.addWidget(lbl)
         return row
