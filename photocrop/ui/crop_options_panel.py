@@ -23,7 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from photocrop.ui.theme import FONT_FAMILY
+from photocrop.ui.icons import get_colored_svg_path
+from photocrop.ui.theme import FONT_FAMILY, theme
 from photocrop.utils.crop_rect import CropRect
 
 
@@ -206,20 +207,27 @@ class CropOptionsPanel(QWidget):
         )
         for spin in [self._spin_width, self._spin_height, self._spin_x, self._spin_y, self._spin_rotation]:
             spin.setStyleSheet(input_style)
-        # ComboBox — 与其他输入框保持一致的样式
+        # ComboBox — 触发器样式 + SVG 下拉箭头（弹出视图由全局 QSS 覆盖）
+        arrow_color = c.text_secondary if theme.mode == "light" else c.text
+        arrow_path = get_colored_svg_path("chevron-down", arrow_color)
+        arrow_qss = (
+            f"QComboBox::down-arrow {{ image: url('{arrow_path}');"
+            f" width: 12px; height: 12px; }}" if arrow_path else ""
+        )
         self._combo_aspect.setStyleSheet(
             f"QComboBox {{"
             f"background-color: {c.surface}; color: {c.text}; "
             f"border: 1px solid {c.border}; border-radius: 4px; "
-            f"padding: 3px 6px; font-family: {FONT_FAMILY}; "
+            f"padding: 3px 24px 3px 6px; font-family: {FONT_FAMILY}; "
             f"font-size: 12px; min-height: 24px;"
             f"}}"
             f"QComboBox:hover {{ border-color: {c.border_strong}; }}"
             f"QComboBox:focus {{ border-color: {c.border_strong}; }}"
             f"QComboBox::drop-down {{"
             f"subcontrol-origin: padding; subcontrol-position: top right; "
-            f"width: 20px; border: none; border-left: 1px solid {c.border};"
+            f"width: 20px; border: none;"
             f"}}"
+            f"{arrow_qss}"
         )
         # Reset 链接按钮
         self._btn_reset_rotation.setStyleSheet(

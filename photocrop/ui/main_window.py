@@ -18,7 +18,6 @@ from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -42,8 +41,9 @@ from photocrop.ui.controllers.theme_controller import ThemeController
 from photocrop.ui.controllers.view_coordinator import ViewCoordinator
 from photocrop.ui.crop_options_panel import CropOptionsPanel
 from photocrop.ui.export_dialog import ExportDialog
+from photocrop.ui.styled_dropdown import StyledDropdown
 from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
-from photocrop.ui.icons import get_colored_svg_path, get_icon
+from photocrop.ui.icons import get_icon
 from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.press_button import PressButton
 from photocrop.ui.single_view_panel import SingleViewPanel
@@ -237,24 +237,17 @@ class MainWindow(QMainWindow):
         self._btn_load.setIconSize(QSize(14, 14))
         layout.addWidget(self._btn_load)
 
-        self._combo_detector = QComboBox()
-        for label, _key in DETECTOR_OPTIONS:
-            self._combo_detector.addItem(label)
-        self._combo_detector.setCurrentIndex(0)
-        self._combo_detector.setFixedWidth(150)
-        self._combo_detector.setFixedHeight(28)
-        self._combo_detector.currentIndexChanged.connect(self._on_detector_changed)
-        # 强制设置弹出视图样式（Qt 弹出窗口不继承父 QSS）
-        view = self._combo_detector.view()
-        view.setStyleSheet(
-            f"QAbstractItemView {{ background: {theme.colors.surface}; color: {theme.colors.text};"
-            f" border: 1px solid {theme.colors.border_strong}; border-radius: 8px; padding: 4px; }}"
-            f"QAbstractItemView::item {{ padding: 6px 12px; border-radius: 4px; min-height: 28px; }}"
-            f"QAbstractItemView::item:selected {{ background: {theme.colors.accent_hover}; }}"
-            f"QAbstractItemView::item:hover {{ background: {theme.colors.hover_bg}; }}"
-        )
-        layout.addWidget(self._combo_detector)
-        self._update_detector_tooltip()
+        self._dropdown_detector = StyledDropdown(panel_width=280, parent=self)
+        self._dropdown_detector.add_option("cv", "CV (Default)",
+            "Fast edge-based detection. Best for well-separated photos on clean backgrounds.")
+        self._dropdown_detector.add_option("enhanced-cv", "Enhanced CV",
+            "Improved edge detection with noise filtering. Better for low-quality scans.")
+        self._dropdown_detector.add_option("combined", "Combined",
+            "IoU voting fusion. Slower but more accurate.")
+        self._dropdown_detector.add_option("yolo-world", "YOLO-World",
+            "AI-powered zero-shot detection. Best for mixed content.")
+        self._dropdown_detector.current_changed.connect(self._on_detector_changed)
+        layout.addWidget(self._dropdown_detector)
 
         self._btn_detect = PressButton("Detect")
         self._btn_detect.setProperty("toolbar", "true")
@@ -606,23 +599,8 @@ class MainWindow(QMainWindow):
             f"font-size: {FontSize.BODY}px;"
         )
 
-        # ComboBox 下拉箭头 SVG 图标 + 弹出视图样式
-        arrow_color = c.text_secondary if theme.mode == "light" else c.text
-        arrow_path = get_colored_svg_path("chevron-down", arrow_color)
-        if arrow_path:
-            self._combo_detector.setStyleSheet(
-                f"QComboBox::down-arrow {{ image: url('{arrow_path}'); "
-                f"width: 14px; height: 14px; }}"
-            )
-        # 强制更新弹出视图样式（Qt 弹出窗口不继承父 QSS）
-        view = self._combo_detector.view()
-        view.setStyleSheet(
-            f"QAbstractItemView {{ background: {c.surface}; color: {c.text};"
-            f" border: 1px solid {c.border_strong}; border-radius: 8px; padding: 4px; }}"
-            f"QAbstractItemView::item {{ padding: 6px 12px; border-radius: 4px; min-height: 28px; }}"
-            f"QAbstractItemView::item:selected {{ background: {c.accent_hover}; }}"
-            f"QAbstractItemView::item:hover {{ background: {c.hover_bg}; }}"
-        )
+        # 检测器下拉菜单主题
+        self._dropdown_detector.apply_theme(c)
 
     def _on_theme_changed(self, _colors: object) -> None:
         self._apply_theme()
@@ -633,22 +611,12 @@ class MainWindow(QMainWindow):
 
     @property
     def _selected_detector(self) -> str:
-        idx = self._combo_detector.currentIndex()
-        if idx < 0 or idx >= len(DETECTOR_OPTIONS):
-            idx = 0
-        return DETECTOR_OPTIONS[idx][1]
+        return self._dropdown_detector.current_value()
 
-    def _on_detector_changed(self, index: int) -> None:
-        """检测器下拉框变化时更新 tooltip"""
-        self._update_detector_tooltip()
-
-    def _update_detector_tooltip(self) -> None:
-        """更新检测器下拉框的 tooltip"""
-        idx = self._combo_detector.currentIndex()
-        if 0 <= idx < len(DETECTOR_OPTIONS):
-            key = DETECTOR_OPTIONS[idx][1]
-            tooltip = DETECTOR_TOOLTIPS.get(key, "")
-            self._combo_detector.setToolTip(tooltip)
+    def _on_detector_changed(self, value: str) -> None:
+        """检测器下拉框变化"""
+        tooltip = DETECTOR_TOOLTIPS.get(value, "")
+        self._dropdown_detector.setToolTip(tooltip)
 
     def _on_load(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(

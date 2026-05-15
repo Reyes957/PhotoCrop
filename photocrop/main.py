@@ -139,6 +139,13 @@ def run_cli(args) -> int:
 
 def run_gui(args) -> int:
     """GUI 模式：启动 PySide6 界面"""
+    # 抑制 macOS IMK "mach port" 警告（系统级 stderr 输出，无法从应用层面消除）
+    import platform, os
+    _stderr_fd = None
+    if platform.system() == "Darwin":
+        _stderr_fd = os.dup(2)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), 2)
+
     try:
         from PySide6.QtWidgets import QApplication
     except ImportError:
@@ -148,6 +155,10 @@ def run_gui(args) -> int:
     from photocrop.ui.main_window import MainWindow
 
     app = QApplication(sys.argv)
+    # 恢复 stderr
+    if _stderr_fd is not None:
+        os.dup2(_stderr_fd, 2)
+        os.close(_stderr_fd)
     app.setApplicationName("PhotoCrop")
     from photocrop import __version__
     app.setApplicationVersion(__version__)

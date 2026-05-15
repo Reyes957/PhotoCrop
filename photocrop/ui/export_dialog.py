@@ -14,7 +14,6 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QFileDialog,
     QFormLayout,
@@ -29,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from photocrop.ui.styled_dropdown import StyledDropdown
 from photocrop.ui.theme import FONT_FAMILY  # noqa: E402
 
 
@@ -197,13 +197,16 @@ class ExportDialog(QDialog):
         fmt_layout.setSpacing(8)
 
         lbl_fmt = QLabel("格式")
-        self._combo_format = QComboBox()
-        self._combo_format.addItems(["JPEG", "PNG", "TIFF"])
+        self._dropdown_format = StyledDropdown(panel_width=120, parent=self)
+        self._dropdown_format.add_option("jpg", "JPEG")
+        self._dropdown_format.add_option("png", "PNG")
+        self._dropdown_format.add_option("tiff", "TIFF")
         # 恢复上次格式设置
         saved_fmt = self._settings.value("export/format", 0, type=int)
-        self._combo_format.setCurrentIndex(saved_fmt)
-        self._combo_format.currentIndexChanged.connect(self._on_format_changed)
-        fmt_layout.addRow(lbl_fmt, self._combo_format)
+        fmt_values = ["jpg", "png", "tiff"]
+        self._dropdown_format.set_current(fmt_values[saved_fmt])
+        self._dropdown_format.current_changed.connect(self._on_format_changed)
+        fmt_layout.addRow(lbl_fmt, self._dropdown_format)
 
         # JPEG 质量
         self._quality_widget = QWidget()
@@ -320,10 +323,11 @@ class ExportDialog(QDialog):
             self._edit_dir.setText(directory)
             self._settings.setValue("export/last_dir", directory)
 
-    def _on_format_changed(self, index: int) -> None:
+    def _on_format_changed(self, value: str) -> None:
         # JPEG 才显示质量滑块
-        self._quality_widget.setVisible(index == 0)
-        self._settings.setValue("export/format", index)
+        self._quality_widget.setVisible(value == "jpg")
+        fmt_index = {"jpg": 0, "png": 1, "tiff": 2}.get(value, 0)
+        self._settings.setValue("export/format", fmt_index)
 
     def _on_quality_changed(self, value: int) -> None:
         self._lbl_quality.setText(f"{value}%")
@@ -364,7 +368,10 @@ class ExportDialog(QDialog):
         """导出按钮点击"""
         # 保存所有设置到 QSettings
         self._settings.setValue("export/last_dir", self._edit_dir.text())
-        self._settings.setValue("export/format", self._combo_format.currentIndex())
+        fmt_index = {"jpg": 0, "png": 1, "tiff": 2}.get(
+            self._dropdown_format.current_value(), 0,
+        )
+        self._settings.setValue("export/format", fmt_index)
         self._settings.setValue("export/quality", self._slider_quality.value())
         self._settings.setValue("export/max_width", self._spin_max_w.value())
         self._settings.setValue("export/max_height", self._spin_max_h.value())
@@ -377,12 +384,12 @@ class ExportDialog(QDialog):
 
     def get_export_config(self) -> dict:
         """返回用户选择的导出配置"""
-        format_map = {0: ".jpg", 1: ".png", 2: ".tif"}
-        fmt_index = self._combo_format.currentIndex()
+        format_map = {"jpg": ".jpg", "png": ".png", "tiff": ".tif"}
+        fmt_value = self._dropdown_format.current_value()
 
         return {
             "output_dir": Path(self._edit_dir.text()) if self._edit_dir.text() else None,
-            "suffix": format_map.get(fmt_index, ".jpg"),
+            "suffix": format_map.get(fmt_value, ".jpg"),
             "quality": self._slider_quality.value(),
             "max_width": self._spin_max_w.value(),
             "max_height": self._spin_max_h.value(),

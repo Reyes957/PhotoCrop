@@ -467,33 +467,33 @@ QComboBox::drop-down {{
     subcontrol-position: top right;
     width: 24px;
     border: none;
-    border-left: 1px solid {c.border};
     border-top-right-radius: 4px;
     border-bottom-right-radius: 4px;
 }}
 QComboBox QAbstractItemView {{
-    background-color: {c.surface};
+    background-color: {c.bg};
     color: {c.text};
-    selection-background-color: {c.selected_bg};
-    selection-color: {c.text};
-    border: 1px solid {c.border_strong};
-    border-radius: 8px;
+    border: none;
     padding: 4px;
     outline: none;
+    font-family: {ff};
+    font-size: {FontSize.SMALL}px;
 }}
 QComboBox QAbstractItemView::item {{
-    padding: 6px 12px;
-    border-radius: 4px;
+    padding: 8px 12px;
     min-height: 28px;
     border: none;
+    border-left: 3px solid transparent;
+    border-radius: 2px;
 }}
 QComboBox QAbstractItemView::item:selected {{
-    background-color: {c.accent_hover};
-    color: {c.text};
+    background-color: {c.selected_bg};
+    border-left: 3px solid {c.accent};
+    font-weight: 600;
+    padding-left: 9px;
 }}
 QComboBox QAbstractItemView::item:hover {{
     background-color: {c.hover_bg};
-    color: {c.text};
 }}
 
 /* === QScrollArea / QScrollBar === */

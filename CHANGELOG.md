@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.7.1 — 自定义下拉组件 + UI 精调（2026-05-15）
+
+### 新增文件
+
+- **`ui/styled_dropdown.py`** — 自定义下拉组件 `StyledDropdown` + `OptionRow`
+  - 反色选中态（Light 黑底白字，Dark 白底黑字）
+  - SVG chevron-down/up 箭头切换
+  - 200ms 淡入动画（QGraphicsOpacityEffect）
+  - 面板 280px 宽，8px 圆角，4px 内边距，2px 行间距
+  - 选项 56px 统一行高，13px Medium 主标签 + 10px Regular 描述
+  - hover 整行 hover_bg 反馈
+  - 面板左对齐触发器，6px 间隙
+
+### 架构变更
+
+- **检测器下拉框** — 从原生 QComboBox 替换为 StyledDropdown（main_window.py）
+- **导出格式下拉框** — 从原生 QComboBox 替换为 StyledDropdown（export_dialog.py）
+- **requirements.md** — 新增依赖清单文档（替代纯 requirements.txt）
+
+### Bug 修复
+
+- **macOS IMK 警告** — 启动时临时重定向 stderr 抑制 `IMKCFRunLoopWakeUpReliable` 消息
+- **CropOptionsPanel 还原** — Aspect Ratio 下拉框保留原生 QComboBox（不在本次重构范围）
+
+---
+
 ## v0.7.0 — 架构重构：控制器层 + 全局状态 + 文档同步（2026-05-14）
 
 ### 架构变更
