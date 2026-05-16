@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <g transform="scale(1.09)">
-    <polyline points="1 4 1 10 7 10"/>
-    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-  </g>
+  <!-- 180° CCW semicircle arc: right → top → left -->
+  <path d="M18 12 A6 6 0 0 0 6 12"/>
+  <!-- Arrowhead at left end -->
+  <polyline points="9 8 6 12 9 16"/>
 </svg>

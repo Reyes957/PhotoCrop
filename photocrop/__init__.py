@@ -14,10 +14,12 @@ v0.6.2: SVG 图标系统 — 22 个 SVG 图标 + get_icon() 运行时颜色注�
 v0.6.3: 第二轮设计审查 — 18 项 UI 美学改进 + Signal/State 一致性 + 106 新测试
 v0.6.4: 控制器架构 — AppState 全局状态 + 5 个控制器 + PressButton + Toast + 拖拽导入 + 6 bug fixes
 v0.7.0: 架构重构 — 业务逻辑与 Qt 解耦 + 全局状态管理 + 123 测试 + 文档全面同步
-v0.7.1: UI 动画重构 — 截图覆盖法视图切换 + 卡片动画清理 + fitInView 延迟适配 + 字体修复
+v0.7.1: StyledDropdown/LightDropdown 自定义下拉组件 + 默认检测器 enhanced-cv + 提取面板精调
+v0.7.2: CropItem 裁剪框边框修复 — ItemClipsToShape 裁剪框线修复 + 加粗虚线 + 选中框呼吸脉动
+v0.7.3: 旋转手柄重构 — 84px toolbar 风格 + SVG 图标放大（工具栏/旋转手柄 UI 统一）
 """
 
-__version__ = "0.7.1"
+__version__ = "0.7.3"
 
 from photocrop.utils.crop_rect import CropRect
 

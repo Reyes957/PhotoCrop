@@ -40,6 +40,8 @@ echo ""
 
 # 启动 GUI（不预加载文件，让用户自己选择）
 echo "启动 PhotoCrop..."
+# 抑制 macOS 上 Qt keymapper 警告
+export QT_LOGGING_RULES="${QT_LOGGING_RULES};qt.qpa.keymapper=false"
 python3 -m photocrop.main --gui
 
 # 如果出错，暂停显示错误

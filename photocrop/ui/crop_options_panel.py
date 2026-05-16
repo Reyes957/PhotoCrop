@@ -162,7 +162,7 @@ class CropOptionsPanel(QWidget):
 
         # --- Aspect Ratio ---
         row_ar = self._create_form_row("Aspect")
-        self._combo_aspect = LightDropdown(panel_width=160, parent=self)
+        self._combo_aspect = LightDropdown(parent=self)
         self._combo_aspect.add_option("free", "Free")
         self._combo_aspect.add_option("original", "Original")
         self._combo_aspect.add_option("1:1", "1:1", "□")

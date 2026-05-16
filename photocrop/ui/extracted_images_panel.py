@@ -100,7 +100,7 @@ class ExtractedImagesPanel(QWidget):
     def _build_ui(self) -> None:
         """构建 UI 结构"""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 0, 10, 10)
+        layout.setContentsMargins(16, 0, 16, 10)
         layout.setSpacing(0)
 
         self._header = QPushButton("EXTRACTED IMAGES")
@@ -154,7 +154,7 @@ class ExtractedImagesPanel(QWidget):
             f"QPushButton {{"
             f"background-color: transparent; color: {c.text_secondary}; "
             f"border: none; text-align: left; font-family: {FONT_FAMILY}; "
-            f"font-size: 13px; font-weight: 600; letter-spacing: 0.3px; padding: 4px 0;"
+            f"font-size: 11px; font-weight: 600; letter-spacing: 0.5px; padding: 4px 0;"
             f"}}"
             f"QPushButton:hover {{ color: {c.text}; }}"
         )

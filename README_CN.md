@@ -26,7 +26,7 @@ PhotoCrop 只做一件事：把照片从扫描页面上干净地裁下来。没�
 
 ## 功能
 
-- **多种检测引擎** — 传统 CV（边缘检测 + 形态学）、增强 CV（已废弃）、组合检测器（IoU 投票融合）、YOLO-World 零样本开放词汇检测
+- **多种检测引擎** — 增强 CV（默认，低质扫描表现更优）、传统 CV（边缘检测 + 形态学）、组合检测器（IoU 投票融合）、YOLO-World 零样本开放词汇检测
 - **可插拔检测器架构** — 基于 ABC 抽象基类和工厂模式，可以随时切换检测器或自己写一个
 - **三种运行模式** — CLI 命令行（写脚本用）、GUI 图形界面（交互编辑）、PDF 批量模式（一键处理整本）
 - **控制器架构** — 5 个专用控制器（检测、导出、Session、主题、视图），业务逻辑与 Qt 控件解耦
@@ -101,8 +101,8 @@ python -m photocrop.main --pdf album.pdf --output ./photos/
 ### 指定检测器
 
 ```bash
-python -m photocrop.main page.jpg --detector cv            # 默认：传统 CV 算法
-python -m photocrop.main page.jpg --detector enhanced-cv   # 增强 CV 管线（已废弃）
+python -m photocrop.main page.jpg --detector enhanced-cv   # 默认：增强 CV
+python -m photocrop.main page.jpg --detector cv            # 传统 CV（边缘检测）
 python -m photocrop.main page.jpg --detector combined      # IoU 投票融合
 python -m photocrop.main page.jpg --detector yolo-world    # YOLO-World（需下载模型）
 python -m photocrop.main page.jpg --detector model         # 视觉大模型 API 占位
@@ -155,6 +155,7 @@ photocrop/
   │   ├── press_button.py      PressButton 按下缩放动画按钮
   │   ├── undo_manager.py      撤销/重做状态管理（完整双栈序列化）
   │   ├── session.py           ImageSession 单图会话数据类
+  │   ├── styled_dropdown.py   自定义下拉组件（StyledDropdown + LightDropdown）
   │   ├── image_list_panel.py  左侧图像列表面板（缩略图 + 文件名 + 裁剪计数）
   │   ├── crop_options_panel.py 右侧属性面板（Width/Height/X/Y/Rotation/宽高比）
   │   ├── extracted_images_panel.py 裁剪结果预览（2 列网格 + LRU 缓存）
@@ -185,8 +186,11 @@ photocrop/
 ```python
 from photocrop.engine.core import detect_rectangles
 
-# 默认 CV 检测
+# 默认：增强 CV
 rects = detect_rectangles(img)
+
+# 传统 CV
+rects = detect_rectangles(img, detector="cv")
 
 # YOLO-World 检测
 rects = detect_rectangles(img, detector="yolo-world")

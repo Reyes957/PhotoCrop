@@ -146,6 +146,13 @@ def run_gui(args) -> int:
         _stderr_fd = os.dup(2)
         os.dup2(os.open(os.devnull, os.O_WRONLY), 2)
 
+    # 抑制 Qt 的 qt.qpa.keymapper Cocoa/Carbon 不匹配警告（macOS PySide6 已知问题）
+    _qt_rules = os.environ.get("QT_LOGGING_RULES", "")
+    if "qt.qpa.keymapper" not in _qt_rules:
+        if _qt_rules and not _qt_rules.endswith(";"):
+            _qt_rules += ";"
+        os.environ["QT_LOGGING_RULES"] = _qt_rules + "qt.qpa.keymapper=false"
+
     try:
         from PySide6.QtWidgets import QApplication
     except ImportError:

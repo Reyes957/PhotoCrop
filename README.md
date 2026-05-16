@@ -26,7 +26,7 @@ The whole detection pipeline runs locally with offline models. Your photos never
 
 ## Features
 
-- **Multiple detection engines** — Traditional CV (edge detection + morphology), Enhanced CV (deprecated), Combined detector (IoU voting fusion), and YOLO-World zero-shot open-vocabulary detection
+- **Multiple detection engines** — Enhanced CV (default, better for low-quality scans), Traditional CV (edge detection + morphology), Combined detector (IoU voting fusion), and YOLO-World zero-shot open-vocabulary detection
 - **Pluggable detector architecture** — ABC base class + factory pattern; swap detectors or add your own
 - **Three modes** — CLI for scripting, GUI (PySide6) for interactive editing, PDF batch for bulk processing
 - **Controller architecture** — 5 dedicated controllers (Detection, Export, Session, Theme, View) decouple business logic from Qt widgets
@@ -101,9 +101,9 @@ python -m photocrop.main --pdf album.pdf --output ./photos/
 ### Choose a detector
 
 ```bash
-python -m photocrop.main page.jpg --detector cv          # Default: traditional CV
-python -m photocrop.main page.jpg --detector enhanced-cv  # Enhanced CV pipeline (deprecated)
-python -m photocrop.main page.jpg --detector combined     # IoU voting fusion
+python -m photocrop.main page.jpg --detector enhanced-cv  # Default: Enhanced CV
+python -m photocrop.main page.jpg --detector cv            # Traditional CV (edge detection)
+python -m photocrop.main page.jpg --detector combined      # IoU voting fusion
 python -m photocrop.main page.jpg --detector yolo-world   # YOLO-World (requires model)
 python -m photocrop.main page.jpg --detector model        # Placeholder for vision API detectors
 ```
@@ -155,6 +155,7 @@ photocrop/
   │   ├── press_button.py      PressButton with scale(0.97) press animation
   │   ├── undo_manager.py      Undo/redo state management (serializable, full dual-stack)
   │   ├── session.py           ImageSession data class for per-image state
+  │   ├── styled_dropdown.py   Custom dropdown components (StyledDropdown + LightDropdown)
   │   ├── image_list_panel.py  Left panel: thumbnails + filenames + crop counts
   │   ├── crop_options_panel.py Right panel: Width/Height/X/Y/Rotation/Aspect Ratio
   │   ├── extracted_images_panel.py Crop result preview (2-column grid + LRU cache)
@@ -185,8 +186,11 @@ photocrop/
 ```python
 from photocrop.engine.core import detect_rectangles
 
-# Default CV
+# Default: enhanced-cv
 rects = detect_rectangles(img)
+
+# Traditional CV
+rects = detect_rectangles(img, detector="cv")
 
 # YOLO-World
 rects = detect_rectangles(img, detector="yolo-world")

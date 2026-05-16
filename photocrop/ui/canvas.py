@@ -397,16 +397,16 @@ class CropCanvas(QGraphicsView):
         self.rects_changed.emit()
 
     def _on_crop_rotate_left(self, item: CropItem) -> None:
-        """裁剪框工具栏：逆时针旋转 90°"""
-        item.crop_rect.rotation_angle = (item.crop_rect.rotation_angle - 90) % 360
+        """裁剪框工具栏：逆时针 180°（半圈快转，与自由旋转手柄区分）"""
+        item.crop_rect.rotation_angle = (item.crop_rect.rotation_angle - 180) % 360
         item._sync_from_rect()
         item.update()
         self._push_undo_state()
         self.rects_changed.emit()
 
     def _on_crop_rotate_right(self, item: CropItem) -> None:
-        """裁剪框工具栏：顺时针旋转 90°"""
-        item.crop_rect.rotation_angle = (item.crop_rect.rotation_angle + 90) % 360
+        """裁剪框工具栏：顺时针 180°（半圈快转，与自由旋转手柄区分）"""
+        item.crop_rect.rotation_angle = (item.crop_rect.rotation_angle + 180) % 360
         item._sync_from_rect()
         item.update()
         self._push_undo_state()
@@ -529,6 +529,8 @@ class CropCanvas(QGraphicsView):
             if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 super().mousePressEvent(event)
                 return
+            # 点击空白处先清除所有选中状态
+            self._scene.clearSelection()
             self._drawing = True
             self._draw_start = self.mapToScene(event.position().toPoint())
             # 延迟创建临时矩形 — 只有真正拖动才显示

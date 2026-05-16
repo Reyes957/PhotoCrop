@@ -298,8 +298,10 @@ class _DropdownPanelBase(QWidget):
 
         # 触发器
         self._trigger = QPushButton()
+        self._trigger.setAttribute(
+            Qt.WidgetAttribute.WA_StyledBackground,
+        )
         self._trigger.setFixedHeight(32)
-        self._trigger.setMinimumWidth(140)
         self._trigger.setCursor(Qt.CursorShape.PointingHandCursor)
         self._trigger.clicked.connect(self._on_trigger_clicked)
 
@@ -403,11 +405,10 @@ class _DropdownPanelBase(QWidget):
     # ---- 面板动画 ----
 
     def _compute_panel_height(self) -> int:
-        """根据选项行的实际尺寸计算面板高度"""
+        """根据选项行的固定高度计算面板高度"""
         total = 0
         for row in self._options:
-            hint = row.sizeHint()
-            total += hint.height() if hint.height() > 0 else self._ROW_HEIGHT
+            total += self._ROW_HEIGHT
         cm = self._CONTENT_MARGINS
         sp = self._CONTENT_SPACING
         total += cm[1] + cm[3]  # top + bottom margins
@@ -426,6 +427,12 @@ class _DropdownPanelBase(QWidget):
             self._close_anim = None
 
         self._update_arrow_icon()
+
+        # 动态计算面板宽度：panel_width<=0 时匹配触发按钮宽度，避免面板超出边界
+        panel_w = (self._trigger.width()
+                   if self._panel_width <= 0
+                   else self._panel_width)
+        self._panel.setFixedWidth(panel_w)
 
         # 动态计算面板高度
         panel_h = self._compute_panel_height()
@@ -659,10 +666,12 @@ class LightDropdown(_DropdownPanelBase):
 
     _ROW_HEIGHT = 36
     _PANEL_RADIUS = 6
+    _CONTENT_MARGINS = (4, 4, 4, 4)  # 四边统一，与选项行 hover 背景边缘对齐
     _OPEN_DURATION = 160
     _CLOSE_DURATION = 110
 
-    def __init__(self, panel_width: int = 160, parent: QWidget | None = None):
+    def __init__(self, panel_width: int = 0, parent: QWidget | None = None):
+        # panel_width=0 → 面板宽度自动匹配触发按钮宽度（避免溢出）
         super().__init__(panel_width, parent)
         self._trigger.setFixedHeight(28)
 
@@ -674,11 +683,12 @@ class LightDropdown(_DropdownPanelBase):
         from photocrop.ui.theme import theme
         c = theme.colors
 
+        # 与 StyledDropdown 一致的触发按钮样式
         self._trigger.setStyleSheet(
             f"QPushButton {{"
             f" background: {c.surface}; color: {c.text};"
             f" border: 1px solid {c.border}; border-radius: 4px;"
-            f" padding: 0 24px 0 8px;"
+            f" padding: 0 28px 0 10px;"
             f" font-family: {FONT_FAMILY}; font-size: {FontSize.BODY}px;"
             f" font-weight: {FontWeight.REGULAR};"
             f" text-align: left;"
@@ -706,3 +716,8 @@ class LightDropdown(_DropdownPanelBase):
 
     def _row_label_text(self, row: QWidget) -> str:
         return row._lbl.text()  # type: ignore[attr-defined]
+
+    def resizeEvent(self, event) -> None:
+        """28px height arrow: (28-14)/2 = 7px"""
+        super().resizeEvent(event)
+        self._arrow.move(self._trigger.width() - 22, 7)
