@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
@@ -23,8 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from photocrop.ui.icons import get_colored_svg_path
-from photocrop.ui.theme import FONT_FAMILY, theme
+from photocrop.ui.styled_dropdown import LightDropdown
+from photocrop.ui.theme import FONT_FAMILY
 from photocrop.utils.crop_rect import CropRect
 
 
@@ -163,9 +162,14 @@ class CropOptionsPanel(QWidget):
 
         # --- Aspect Ratio ---
         row_ar = self._create_form_row("Aspect")
-        self._combo_aspect = QComboBox()
-        self._combo_aspect.addItems(["Free", "Original", "1:1", "3:2", "4:3", "16:9"])
-        self._combo_aspect.currentIndexChanged.connect(self._on_aspect_changed)
+        self._combo_aspect = LightDropdown(panel_width=160, parent=self)
+        self._combo_aspect.add_option("free", "Free")
+        self._combo_aspect.add_option("original", "Original")
+        self._combo_aspect.add_option("1:1", "1:1", "□")
+        self._combo_aspect.add_option("3:2", "3:2", "▭")
+        self._combo_aspect.add_option("4:3", "4:3", "▭")
+        self._combo_aspect.add_option("16:9", "16:9", "▬")
+        self._combo_aspect.current_changed.connect(self._on_aspect_changed)
         row_ar.layout().addWidget(self._combo_aspect, 1)
         form_layout.addWidget(row_ar)
 
@@ -207,28 +211,8 @@ class CropOptionsPanel(QWidget):
         )
         for spin in [self._spin_width, self._spin_height, self._spin_x, self._spin_y, self._spin_rotation]:
             spin.setStyleSheet(input_style)
-        # ComboBox — 触发器样式 + SVG 下拉箭头（弹出视图由全局 QSS 覆盖）
-        arrow_color = c.text_secondary if theme.mode == "light" else c.text
-        arrow_path = get_colored_svg_path("chevron-down", arrow_color)
-        arrow_qss = (
-            f"QComboBox::down-arrow {{ image: url('{arrow_path}');"
-            f" width: 12px; height: 12px; }}" if arrow_path else ""
-        )
-        self._combo_aspect.setStyleSheet(
-            f"QComboBox {{"
-            f"background-color: {c.surface}; color: {c.text}; "
-            f"border: 1px solid {c.border}; border-radius: 4px; "
-            f"padding: 3px 24px 3px 6px; font-family: {FONT_FAMILY}; "
-            f"font-size: 12px; min-height: 24px;"
-            f"}}"
-            f"QComboBox:hover {{ border-color: {c.border_strong}; }}"
-            f"QComboBox:focus {{ border-color: {c.border_strong}; }}"
-            f"QComboBox::drop-down {{"
-            f"subcontrol-origin: padding; subcontrol-position: top right; "
-            f"width: 20px; border: none;"
-            f"}}"
-            f"{arrow_qss}"
-        )
+        # LightDropdown — 统一主题
+        self._combo_aspect.apply_theme(c)
         # Reset 链接按钮
         self._btn_reset_rotation.setStyleSheet(
             f"QPushButton {{"
@@ -355,11 +339,12 @@ class CropOptionsPanel(QWidget):
         self.rect_changed.emit()
         self.editing_finished.emit()
 
-    def _on_aspect_changed(self, index: int) -> None:
+    def _on_aspect_changed(self, value: str) -> None:
         ratio_map = {
-            0: 0.0, 1: -1.0, 2: 1.0, 3: 3 / 2, 4: 4 / 3, 5: 16 / 9,
+            "free": 0.0, "original": -1.0, "1:1": 1.0,
+            "3:2": 3 / 2, "4:3": 4 / 3, "16:9": 16 / 9,
         }
-        ratio = ratio_map.get(index, 0.0)
+        ratio = ratio_map.get(value, 0.0)
         self.aspect_ratio_changed.emit(ratio)
 
     def set_theme(self, colors) -> None:
@@ -370,3 +355,4 @@ class CropOptionsPanel(QWidget):
             border_strong=colors.border_strong, accent=colors.accent,
         )
         self._apply_styles()
+        self._combo_aspect.apply_theme(colors)

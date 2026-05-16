@@ -42,7 +42,7 @@ class CombinedDetector(BaseDetector):
     def __init__(self, iou_threshold: float = 0.3):
         # BUG-011 fix: 同步标记为废弃
         warnings.warn(
-            "CombinedDetector 已废弃，建议使用 CVDetector（默认）或 YOLO-World 代替",
+            "CombinedDetector 已废弃，建议使用 EnhancedCVDetector（默认）或 YOLO-World 代替",
             DeprecationWarning,
             stacklevel=2,
         )

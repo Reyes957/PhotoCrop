@@ -73,9 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--detector",
         type=str,
-        default="cv",
+        default="enhanced-cv",
         choices=["cv", "enhanced-cv", "combined", "yolo-world", "model"],
-        help="检测器类型（默认 cv）",
+        help="检测器类型（默认 enhanced-cv）",
     )
     parser.add_argument(
         "--no-fallback",

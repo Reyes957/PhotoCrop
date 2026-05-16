@@ -53,3 +53,6 @@ ui_preview.html
 
 # === 图标缓存（get_colored_svg_path 生成）===
 photocrop/ui/icons/.cache/
+
+# === AI 审查文档（不公开）===
+CODE_REVIEW_*.md

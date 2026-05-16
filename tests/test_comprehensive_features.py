@@ -1028,7 +1028,7 @@ class TestConfig:
     def test_default_config(self):
         from photocrop.config import PhotoCropConfig
         cfg = PhotoCropConfig()
-        assert cfg.detector == "cv"
+        assert cfg.detector == "enhanced-cv"
         assert cfg.max_count == 4
         assert cfg.export_format == "jpg"  # no dot prefix
         assert cfg.auto_rotate is True

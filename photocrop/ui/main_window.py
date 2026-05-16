@@ -56,15 +56,15 @@ from photocrop.ui.toast import show_toast
 # ============================================================
 
 DETECTOR_OPTIONS = [
-    ("CV (Default)", "cv"),
-    ("Enhanced CV", "enhanced-cv"),
+    ("Enhanced CV (Default)", "enhanced-cv"),
+    ("CV", "cv"),
     ("Combined", "combined"),
     ("YOLO-World", "yolo-world"),
 ]
 
 DETECTOR_TOOLTIPS = {
-    "cv": "CV (Default): Fast edge-based detection. Best for well-separated photos on clean backgrounds.",
-    "enhanced-cv": "Enhanced CV: Improved edge detection with noise filtering. Better for low-quality scans.",
+    "enhanced-cv": "Enhanced CV (Default): Improved edge detection with noise filtering. Better for low-quality scans.",
+    "cv": "CV: Fast edge-based detection. Best for well-separated photos on clean backgrounds.",
     "combined": "Combined: Uses both edge detection and contour analysis. Slower but more accurate.",
     "yolo-world": "YOLO-World: AI-powered object detection. Best for complex layouts and mixed content.",
 }
@@ -238,10 +238,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._btn_load)
 
         self._dropdown_detector = StyledDropdown(panel_width=280, parent=self)
-        self._dropdown_detector.add_option("cv", "CV (Default)",
-            "Fast edge-based detection. Best for well-separated photos on clean backgrounds.")
-        self._dropdown_detector.add_option("enhanced-cv", "Enhanced CV",
+        self._dropdown_detector.add_option("enhanced-cv", "Enhanced CV (Default)",
             "Improved edge detection with noise filtering. Better for low-quality scans.")
+        self._dropdown_detector.add_option("cv", "CV",
+            "Fast edge-based detection. Best for well-separated photos on clean backgrounds.")
         self._dropdown_detector.add_option("combined", "Combined",
             "IoU voting fusion. Slower but more accurate.")
         self._dropdown_detector.add_option("yolo-world", "YOLO-World",

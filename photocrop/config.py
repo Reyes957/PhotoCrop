@@ -7,7 +7,7 @@
 用法：
     from photocrop.config import get_config
     cfg = get_config()
-    print(cfg.detector)       # "cv"
+    print(cfg.detector)       # "enhanced-cv"
     print(cfg.max_count)      # 4
 """
 
@@ -29,7 +29,7 @@ class PhotoCropConfig:
     """PhotoCrop 用户配置（所有字段都有默认值）"""
 
     # 检测器
-    detector: str = "cv"
+    detector: str = "enhanced-cv"
     max_count: int = 4
     min_width: float = 100
     min_height: float = 100
