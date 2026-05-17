@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "photocrop"
-version = "0.7.3"
+version = "0.7.4"
 description = "从扫描 PDF 相册页面中自动检测照片矩形，支持手动微调，批量裁剪导出"
 readme = "README.md"
 license = {text = "MIT"}

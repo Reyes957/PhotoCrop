@@ -19,7 +19,7 @@ v0.7.2: CropItem 裁剪框边框修复 — ItemClipsToShape 裁剪框线修复 +
 v0.7.3: 旋转手柄重构 — 84px toolbar 风格 + SVG 图标放大（工具栏/旋转手柄 UI 统一）
 """
 
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 
 from photocrop.utils.crop_rect import CropRect
 

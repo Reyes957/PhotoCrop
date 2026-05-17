@@ -60,9 +60,11 @@ def set_theme_colors(colors) -> None:
 HANDLE_SIZE = 18          # 角标视觉尺寸
 HANDLE_HOVER_SIZE = 22    # 悬停放大尺寸
 HANDLE_HIT_RADIUS = 22    # 独立触发判定半径（高于视觉尺寸，便于鼠标靠近即识别）
-ROTATION_HANDLE_OFFSET = 180  # 旋转手柄在裁剪框上方 180px（手柄84px + 工具栏96px + 间距）
-ROTATION_HANDLE_SIZE = 84     # 旋转手柄 84×84px（与工具栏按钮一致）
-ROTATION_LINE_WIDTH = 10.0    # 旋转连接线粗细（与选中实线一致）
+
+# 自由旋转抓取手柄（裁剪框上方的旋转图标，hover 激活拖拽旋转）
+GRAB_HANDLE_SIZE = 32     # 抓取手柄视觉尺寸（容纳旋转图标）
+GRAB_HANDLE_OFFSET = 60   # 距裁剪框顶边 60px（与工具栏按钮中心对齐）
+GRAB_HIT_EXTRA = 8        # 命中检测额外容差
 
 # 框线样式
 PEN_WIDTH_SELECTED = 10.0     # 选中实线宽度
@@ -89,6 +91,7 @@ class HandlePosition:
     LEFT = "left"
     RIGHT = "right"
     ROTATION = "rotation"
+    GRAB_ROTATION = "grab_rotation"
     BODY = "body"
 
 
@@ -156,27 +159,27 @@ class CropItem(QGraphicsRectItem):
         self._on_rotating = on_rotating
 
     def boundingRect(self) -> QRectF:
-        """动态计算边界，覆盖裁剪框 + 旋转手柄 + 工具栏"""
+        """动态计算边界，覆盖裁剪框 + 自由旋转抓取手柄 + 工具栏"""
         r = super().boundingRect()
         rect = self.rect()
         if rect.isEmpty():
             return r
 
-        # 旋转手柄区域
-        rot_pos_y = rect.top() - ROTATION_HANDLE_OFFSET
-        rot_half = ROTATION_HANDLE_SIZE / 2 + 4
-        rot_rect = QRectF(
-            rect.center().x() - rot_half,
-            rot_pos_y - rot_half,
-            rot_half * 2,
-            rot_half * 2,
+        # 抓取手柄区域
+        grab_pos = self._grab_handle_pos(rect)
+        gh_half = GRAB_HANDLE_SIZE / 2 + GRAB_HIT_EXTRA
+        grab_rect = QRectF(
+            grab_pos.x() - gh_half,
+            grab_pos.y() - gh_half,
+            gh_half * 2,
+            gh_half * 2,
         )
 
         # 工具栏背景区域
         tb_rect = self._toolbar_bg_rect(rect)
 
         # 合并所有区域
-        all_rects = [r, tb_rect, rot_rect]
+        all_rects = [r, tb_rect, grab_rect]
         top = min(rr.top() for rr in all_rects)
         left = min(rr.left() for rr in all_rects)
         bottom = max(rr.bottom() for rr in all_rects)
@@ -185,30 +188,19 @@ class CropItem(QGraphicsRectItem):
         return QRectF(left, top, right - left, bottom - top)
 
     def shape(self) -> QPainterPath:
-        """精确碰撞检测：裁剪框 + 旋转手柄到框顶连接区 + 工具栏"""
+        """精确碰撞检测：裁剪框 + 抓取手柄 + 工具栏"""
         path = QPainterPath()
         rect = self.rect()
         margin = max(PEN_WIDTH_SELECTED, PEN_WIDTH_INACTIVE) / 2
         # 裁剪框本身（含边框余量）
         path.addRect(rect.adjusted(-margin, -margin, margin, margin))
-        # 旋转手柄（rect，与视觉一致，略大提升点击容差）
-        rot_pos = QPointF(rect.center().x(), rect.top() - ROTATION_HANDLE_OFFSET)
-        rh_size = ROTATION_HANDLE_SIZE + 4
-        rh_half = rh_size / 2
-        path.addRect(QRectF(rot_pos.x() - rh_half, rot_pos.y() - rh_half, rh_size, rh_size))
+        # 抓取手柄
+        grab_pos = self._grab_handle_pos(rect)
+        gh = GRAB_HANDLE_SIZE + GRAB_HIT_EXTRA
+        gh_half = gh / 2
+        path.addRect(QRectF(grab_pos.x() - gh_half, grab_pos.y() - gh_half, gh, gh))
         # 工具栏背景
-        tb_rect = self._toolbar_bg_rect(rect)
-        path.addRect(tb_rect)
-        # 连接区：旋转手柄上缘 → 工具栏上缘（填补空隙，且不与工具栏重叠，避免 OddEvenFill 消隐）
-        connector_top = rot_pos.y() - rh_half    # 手柄上缘
-        connector_bot = tb_rect.top()            # 工具栏上缘（不与工具栏重叠！）
-        if connector_top < connector_bot:
-            bg_left = tb_rect.left()
-            bg_right = tb_rect.right()
-            c_left = min(rect.center().x() - rh_half, bg_left)
-            c_right = max(rect.center().x() + rh_half, bg_right)
-            if c_right > c_left:  # 保证有效宽度
-                path.addRect(QRectF(c_left, connector_top, c_right - c_left, connector_bot - connector_top))
+        path.addRect(self._toolbar_bg_rect(rect))
         return path
 
     @property
@@ -284,7 +276,7 @@ class CropItem(QGraphicsRectItem):
 
         # 拖动时显示尺寸信息
         if self._drag_handle not in (HandlePosition.NONE, HandlePosition.BODY,
-                                     HandlePosition.ROTATION):
+                                     HandlePosition.ROTATION, HandlePosition.GRAB_ROTATION):
             self._paint_size_label(painter, rect)
 
         painter.restore()
@@ -311,57 +303,45 @@ class CropItem(QGraphicsRectItem):
             painter.setBrush(QBrush(self._t_accent))
             painter.drawRect(QRectF(pos.x() - half, pos.y() - half, size, size))
 
-        # 旋转手柄 — 带连接线（设计规范：12×12px，虚线连接）
-        rotation_pos = QPointF(
-            rect.center().x(),
-            rect.top() - ROTATION_HANDLE_OFFSET,
-        )
+        # 自由旋转抓取手柄（裁剪框上方旋转图标 + 连接线）
+        grab_pos = self._grab_handle_pos(rect)
+        is_hovered = self._hovered_handle == HandlePosition.GRAB_ROTATION
+        grab_size = GRAB_HANDLE_SIZE + 6 if is_hovered else GRAB_HANDLE_SIZE
+        grab_half = grab_size / 2
 
-        # 连接线：10px 宽实线（与未选中边框粗细一致）
-        line_pen = QPen(self._t_accent, ROTATION_LINE_WIDTH)
+        # 连接线：裁剪框顶边 → 抓取手柄下边缘
+        line_pen = QPen(self._t_accent, 2.0)
         line_pen.setStyle(Qt.PenStyle.SolidLine)
         painter.setPen(line_pen)
         painter.drawLine(
             QPointF(rect.center().x(), rect.top()),
-            rotation_pos,
+            QPointF(grab_pos.x(), grab_pos.y() + GRAB_HANDLE_SIZE / 2),
         )
 
-        # 旋转手柄按钮（与工具栏按钮同规格：84×84，toolbar 背景 + hover 高亮 + 图标满铺）
-        rhs = ROTATION_HANDLE_SIZE
-        rhh = rhs  # 选中/未选中统一大小（不靠放大表示 hover，改用白色 overlay）
-        rh_half = rhh / 2
-        rh_rect = QRectF(rotation_pos.x() - rh_half, rotation_pos.y() - rh_half, rhh, rhh)
-
-        # 背景：半透明 accent 色（与工具栏 bg 一致）
+        # 实心圆形背景
+        grab_rect = QRectF(grab_pos.x() - grab_half, grab_pos.y() - grab_half, grab_size, grab_size)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(self._t_toolbar_bg))
-        painter.drawRoundedRect(rh_rect, 6, 6)
+        painter.setBrush(QBrush(self._t_accent))
+        painter.drawEllipse(grab_rect)
 
-        # Hover 高亮：白色半透明 overlay（与工具栏按钮 hover 效果一致）
-        if self._hovered_handle == HandlePosition.ROTATION:
+        # hover 时白色 overlay
+        if is_hovered:
             painter.setBrush(QBrush(QColor(255, 255, 255, 60)))
-            painter.drawRoundedRect(rh_rect, 6, 6)
+            painter.drawEllipse(grab_rect)
 
-        # 旋转图标（白色，0px padding → 84×84 满铺，与工具栏图标一致）
+        # 旋转图标（白色，居中）
         icon = get_icon("rotate-ccw", "#FFFFFF")
-        icon.paint(painter, rh_rect.toRect(), Qt.AlignmentFlag.AlignCenter)
-
-        # 显示当前旋转角度（手柄右外侧）
-        angle = self._crop_rect.rotation_angle
-        if angle != 0.0:
-            painter.setPen(QPen(self._t_accent, 1.5))
-            font = painter.font()
-            font.setPointSize(11)
-            painter.setFont(font)
-            angle_text = f"{angle:.0f}°"
-            text_pos = QPointF(rh_rect.right() + 6, rotation_pos.y() + 4)
-            painter.drawText(text_pos, angle_text)
+        icon_size = int(grab_size * 0.7)
+        icon_x = int(grab_pos.x() - icon_size / 2)
+        icon_y = int(grab_pos.y() - icon_size / 2)
+        icon.paint(painter, QRectF(icon_x, icon_y, icon_size, icon_size).toRect(),
+                   Qt.AlignmentFlag.AlignCenter)
 
     # ---- 工具栏（右上角） ----
 
     TOOLBAR_BUTTON_SIZE = 84
     TOOLBAR_GAP = 2
-    TOOLBAR_ICONS = ["eye", "x", "copy"]  # 查看 / 删除 / 复制（旋转通过自由旋转手柄）
+    TOOLBAR_ICONS = ["eye", "x", "copy"]  # 查看 / 删除 / 复制（旋转通过抓取手柄）
     TOOLBAR_ICON_COLOR = "#FFFFFF"  # 纯白，最大化对比度
 
     def _toolbar_bg_rect(self, rect: QRectF) -> QRectF:
@@ -401,10 +381,13 @@ class CropItem(QGraphicsRectItem):
         painter.setBrush(QBrush(self._t_toolbar_bg))
         painter.drawRoundedRect(bg_rect, 6, 6)
 
+        # hover 判定需变换到未旋转坐标系（与 _toolbar_button_at 一致）
+        hover_pos = self._unrotated_pos(getattr(self, '_last_hover_pos', QPointF()))
+
         # 按钮
         for _i, (btn_rect, icon_name) in enumerate(zip(btn_rects, self.TOOLBAR_ICONS)):
             # 按钮 hover 高亮
-            if btn_rect.contains(getattr(self, '_last_hover_pos', QPointF())):
+            if btn_rect.contains(hover_pos):
                 painter.setBrush(QBrush(QColor(255, 255, 255, 60)))
             else:
                 painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -447,14 +430,39 @@ class CropItem(QGraphicsRectItem):
         painter.setPen(QPen(self._t_accent))
         painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, text)
 
+    def _grab_handle_pos(self, rect: QRectF) -> QPointF:
+        """返回自由旋转抓取手柄的中心位置（裁剪框上方）"""
+        return QPointF(rect.center().x(), rect.top() - GRAB_HANDLE_OFFSET)
+
     def _toolbar_button_at(self, pos: QPointF) -> int:
         """检测点击是否在工具栏按钮上，返回按钮索引（-1=无）"""
         rect = self.rect()
         btn_rects = self._toolbar_rects(rect)
+        p = self._unrotated_pos(pos)
         for i, btn_rect in enumerate(btn_rects):
-            if btn_rect.contains(pos):
+            if btn_rect.contains(p):
                 return i
         return -1
+
+    # ---- 坐标变换 ----
+
+    def _unrotated_pos(self, pos: QPointF) -> QPointF:
+        """将鼠标位置旋转回 item 的未旋转坐标系（用于手柄命中检测）。
+        paint() 中对裁剪框施加了 painter.rotate(-angle) 旋转，所以逆变换是旋转 +angle。
+        """
+        angle = self._crop_rect.rotation_angle
+        if angle == 0:
+            return pos
+        rad = math.radians(-angle)
+        center = self.rect().center()
+        dx = pos.x() - center.x()
+        dy = pos.y() - center.y()
+        cos_a = math.cos(rad)
+        sin_a = math.sin(rad)
+        return QPointF(
+            center.x() + dx * cos_a + dy * sin_a,
+            center.y() - dx * sin_a + dy * cos_a,
+        )
 
     # ---- 手柄检测 ----
 
@@ -462,12 +470,17 @@ class CropItem(QGraphicsRectItem):
         rect = self.rect()
         hs = HANDLE_HIT_RADIUS  # 独立触发半径，远大于视觉尺寸
 
-        # 旋转手柄（rect 检测，与按钮视觉一致，+4px 容差）
-        rotation_pos = QPointF(rect.center().x(), rect.top() - ROTATION_HANDLE_OFFSET)
-        rh_handle = ROTATION_HANDLE_SIZE + 4
-        rotation_rect = QRectF(rotation_pos.x() - rh_handle/2, rotation_pos.y() - rh_handle/2, rh_handle, rh_handle)
-        if rotation_rect.contains(pos):
-            return HandlePosition.ROTATION
+        # 裁剪框旋转时，鼠标 pos 在旋转后的坐标系中，需要变换回未旋转坐标系
+        # 才能和未旋转的手柄矩形正确匹配
+        p = self._unrotated_pos(pos)
+
+        # 自由旋转抓取手柄
+        grab_pos = self._grab_handle_pos(rect)
+        grab_hit = GRAB_HANDLE_SIZE + GRAB_HIT_EXTRA
+        grab_half = grab_hit / 2
+        grab_rect = QRectF(grab_pos.x() - grab_half, grab_pos.y() - grab_half, grab_hit, grab_hit)
+        if grab_rect.contains(p):
+            return HandlePosition.GRAB_ROTATION
 
         # 四角
         corners = [
@@ -477,7 +490,7 @@ class CropItem(QGraphicsRectItem):
             (rect.bottomRight(), HandlePosition.BOTTOM_RIGHT),
         ]
         for corner_pos, handle in corners:
-            if (pos - corner_pos).manhattanLength() < hs:
+            if (p - corner_pos).manhattanLength() < hs:
                 return handle
 
         # 四边
@@ -488,10 +501,10 @@ class CropItem(QGraphicsRectItem):
             (QPointF(rect.right(), rect.center().y()), HandlePosition.RIGHT),
         ]
         for edge_pos, handle in edges:
-            if (pos - edge_pos).manhattanLength() < hs:
+            if (p - edge_pos).manhattanLength() < hs:
                 return handle
 
-        if rect.contains(pos):
+        if rect.contains(p):
             return HandlePosition.BODY
 
         return HandlePosition.NONE
@@ -509,6 +522,7 @@ class CropItem(QGraphicsRectItem):
             HandlePosition.LEFT: Qt.CursorShape.SizeHorCursor,
             HandlePosition.RIGHT: Qt.CursorShape.SizeHorCursor,
             HandlePosition.ROTATION: Qt.CursorShape.CrossCursor,
+            HandlePosition.GRAB_ROTATION: Qt.CursorShape.CrossCursor,
             HandlePosition.BODY: Qt.CursorShape.SizeAllCursor,
             HandlePosition.NONE: Qt.CursorShape.ArrowCursor,
         }
@@ -550,7 +564,7 @@ class CropItem(QGraphicsRectItem):
             # 点击工具栏/手柄前确保选中此框（选中后才显示工具栏视觉反馈）
             self.setSelected(True)
 
-            # 先检查工具栏按钮（3 个：eye view / x delete / copy）
+            # 先检查工具栏按钮（3 个：eye / x / copy）
             toolbar_idx = self._toolbar_button_at(event.pos())
             if toolbar_idx == 0 and self._on_view_single:
                 self._on_view_single()
@@ -588,7 +602,7 @@ class CropItem(QGraphicsRectItem):
 
         if self._drag_handle == HandlePosition.BODY:
             new_rect.translate(delta)
-        elif self._drag_handle == HandlePosition.ROTATION:
+        elif self._drag_handle in (HandlePosition.ROTATION, HandlePosition.GRAB_ROTATION):
             # 计算从矩形中心到鼠标位置的角度
             center = self.rect().center()
             mouse = event.pos()
