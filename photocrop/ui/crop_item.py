@@ -202,6 +202,11 @@ class CropItem(QGraphicsRectItem):
     def crop_rect(self) -> CropRect:
         return self._crop_rect
 
+    def _setup_transform_origin(self):
+        """设置旋转中心为裁剪框中心（必须在 rect 或 rotation 变化后调用）"""
+        c = self.rect().center()
+        self.setTransformOriginPoint(c)
+
     def _sync_from_rect(self):
         r = self._crop_rect
         self.setRect(QRectF(
@@ -210,6 +215,8 @@ class CropItem(QGraphicsRectItem):
             r.width,
             r.height,
         ))
+        self._setup_transform_origin()
+        self.setRotation(r.rotation_angle)
 
     def _sync_to_rect(self):
         rect = self.rect()
@@ -217,6 +224,7 @@ class CropItem(QGraphicsRectItem):
         self._crop_rect.y = rect.center().y()
         self._crop_rect.width = rect.width()
         self._crop_rect.height = rect.height()
+        self._setup_transform_origin()
 
     # ---- 绘制 ----
 
@@ -228,14 +236,8 @@ class CropItem(QGraphicsRectItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         is_selected = self.isSelected()
 
-        # 应用旋转变换（围绕裁剪框中心）
-        painter.save()
-        angle = self._crop_rect.rotation_angle
-        if angle != 0:
-            center = rect.center()
-            painter.translate(center)
-            painter.rotate(-angle)
-            painter.translate(-center)
+        # 旋转由 QGraphicsItem.setRotation() 处理（item 级旋转变换）
+        # paint 内不需要手动旋转 painter
 
         # 选中呼吸光晕（宽笔触柔光，脉冲透明度 — 连续脉动）
         if is_selected:
@@ -275,8 +277,6 @@ class CropItem(QGraphicsRectItem):
         if self._drag_handle not in (HandlePosition.NONE, HandlePosition.BODY,
                                      HandlePosition.ROTATION, HandlePosition.GRAB_ROTATION):
             self._paint_size_label(painter, rect)
-
-        painter.restore()
 
     def _paint_corner_handles(self, painter: QPainter, rect: QRectF) -> None:
         """绘制四角圆点手柄（仅选中时显示）"""
@@ -378,8 +378,8 @@ class CropItem(QGraphicsRectItem):
         painter.setBrush(QBrush(self._t_toolbar_bg))
         painter.drawRoundedRect(bg_rect, 6, 6)
 
-        # hover 判定需变换到未旋转坐标系（与 _toolbar_button_at 一致）
-        hover_pos = self._unrotated_pos(getattr(self, '_last_hover_pos', QPointF()))
+        # item 级旋转下 _last_hover_pos 已在本地坐标系
+        hover_pos = getattr(self, '_last_hover_pos', QPointF())
 
         # 按钮
         for _i, (btn_rect, icon_name) in enumerate(zip(btn_rects, self.TOOLBAR_ICONS)):
@@ -434,40 +434,20 @@ class CropItem(QGraphicsRectItem):
         """检测点击是否在工具栏按钮上，返回按钮索引（-1=无）"""
         rect = self.rect()
         btn_rects = self._toolbar_rects(rect)
-        p = self._unrotated_pos(pos)
+        # item 级旋转下 pos 已在本地坐标系，无需 unrotated 变换
         for i, btn_rect in enumerate(btn_rects):
-            if btn_rect.contains(p):
+            if btn_rect.contains(pos):
                 return i
         return -1
-
-    # ---- 坐标变换 ----
-
-    def _unrotated_pos(self, pos: QPointF) -> QPointF:
-        """将鼠标位置旋转回 item 的未旋转坐标系（用于手柄命中检测）。
-        paint() 中对裁剪框施加了 painter.rotate(-angle) 旋转，所以逆变换是旋转 +angle。
-        """
-        angle = self._crop_rect.rotation_angle
-        if angle == 0:
-            return pos
-        rad = math.radians(-angle)
-        center = self.rect().center()
-        dx = pos.x() - center.x()
-        dy = pos.y() - center.y()
-        cos_a = math.cos(rad)
-        sin_a = math.sin(rad)
-        return QPointF(
-            center.x() + dx * cos_a + dy * sin_a,
-            center.y() - dx * sin_a + dy * cos_a,
-        )
 
     # ---- 手柄检测 ----
 
     def _handle_at(self, pos: QPointF) -> str:
         rect = self.rect()
 
-        # 裁剪框旋转时，鼠标 pos 在旋转后的坐标系中，需要变换回未旋转坐标系
-        # 才能和未旋转的手柄矩形正确匹配
-        p = self._unrotated_pos(pos)
+        # item 级旋转（setRotation）自动将 event.pos() 转换到 item 本地坐标系
+        # pos 已经是未旋转坐标，直接使用即可
+        p = pos
 
         # 自由旋转抓取手柄（圆形命中检测）
         grab_pos = self._grab_handle_pos(rect)
@@ -602,11 +582,12 @@ class CropItem(QGraphicsRectItem):
         if self._drag_handle == HandlePosition.BODY:
             new_rect.translate(delta)
         elif self._drag_handle in (HandlePosition.ROTATION, HandlePosition.GRAB_ROTATION):
-            # 计算从矩形中心到鼠标位置的角度
-            center = self.rect().center()
-            mouse = event.pos()
-            dx = mouse.x() - center.x()
-            dy = mouse.y() - center.y()
+            # 在场景坐标系中计算角度（item 旋转后 event.pos() 在本地坐标系，
+            # 需要转到场景坐标才能正确反映鼠标在屏幕上的方位）
+            center_scene = self.mapToScene(self.rect().center())
+            mouse_scene = event.scenePos()
+            dx = mouse_scene.x() - center_scene.x()
+            dy = mouse_scene.y() - center_scene.y()
 
             # atan2 返回弧度，转换为角度
             # Qt 坐标系 y 轴向下，atan2(-dy,dx) 得到标准数学角度
@@ -624,6 +605,8 @@ class CropItem(QGraphicsRectItem):
                     break
 
             self._crop_rect.rotation_angle = rotation
+            self._setup_transform_origin()
+            self.setRotation(rotation)
             self.update()
             # 轻量实时回调（仅更新属性面板，不触发完整刷新）
             if self._on_rotating:
