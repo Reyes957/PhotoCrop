@@ -56,15 +56,17 @@ def set_theme_colors(colors) -> None:
     CropItem._t_toolbar_bg = tbg
 
 
-# 手柄尺寸
-HANDLE_SIZE = 18          # 角标视觉尺寸
-HANDLE_HOVER_SIZE = 22    # 悬停放大尺寸
-HANDLE_HIT_RADIUS = 22    # 独立触发判定半径（高于视觉尺寸，便于鼠标靠近即识别）
+# 手柄尺寸 — 实心圆点
+CORNER_DOT_RADIUS = 14      # 四角圆点半径
+CORNER_DOT_HOVER = 18       # 四角圆点 hover 半径
+CORNER_HIT_RADIUS = 44      # 四角命中判定半径（manhattan 距离）
+EDGE_HIT_WIDTH = 22         # 边线命中检测的半宽（鼠标到边线的垂直距离阈值）
 
-# 自由旋转抓取手柄（裁剪框上方的旋转图标，hover 激活拖拽旋转）
-GRAB_HANDLE_SIZE = 32     # 抓取手柄视觉尺寸（容纳旋转图标）
-GRAB_HANDLE_OFFSET = 60   # 距裁剪框顶边 60px（与工具栏按钮中心对齐）
-GRAB_HIT_EXTRA = 8        # 命中检测额外容差
+# 自由旋转抓取手柄（裁剪框上方的旋转圆点，与四角同尺寸）
+GRAB_HANDLE_RADIUS = 14     # 与 CORNER_DOT_RADIUS 一致
+GRAB_HANDLE_HOVER = 18      # 与 CORNER_DOT_HOVER 一致
+GRAB_HANDLE_OFFSET = 40     # 距裁剪框顶边 40px
+GRAB_HIT_EXTRA = 8          # 命中检测额外容差
 
 # 框线样式
 PEN_WIDTH_SELECTED = 10.0     # 选中实线宽度
@@ -159,36 +161,32 @@ class CropItem(QGraphicsRectItem):
         self._on_rotating = on_rotating
 
     def boundingRect(self) -> QRectF:
-        """动态计算边界，覆盖裁剪框 + 自由旋转抓取手柄 + 工具栏"""
+        """动态计算边界，覆盖裁剪框 + 自由旋转抓取手柄（工具栏在框内无需额外扩展）"""
         r = super().boundingRect()
         rect = self.rect()
         if rect.isEmpty():
             return r
 
-        # 抓取手柄区域
+        # 抓取手柄区域（在裁剪框上方）
         grab_pos = self._grab_handle_pos(rect)
-        gh_half = GRAB_HANDLE_SIZE / 2 + GRAB_HIT_EXTRA
+        gh = max(GRAB_HANDLE_HOVER, GRAB_HANDLE_RADIUS) + GRAB_HIT_EXTRA
         grab_rect = QRectF(
-            grab_pos.x() - gh_half,
-            grab_pos.y() - gh_half,
-            gh_half * 2,
-            gh_half * 2,
+            grab_pos.x() - gh,
+            grab_pos.y() - gh,
+            gh * 2,
+            gh * 2,
         )
 
-        # 工具栏背景区域
-        tb_rect = self._toolbar_bg_rect(rect)
-
-        # 合并所有区域
-        all_rects = [r, tb_rect, grab_rect]
-        top = min(rr.top() for rr in all_rects)
-        left = min(rr.left() for rr in all_rects)
-        bottom = max(rr.bottom() for rr in all_rects)
-        right = max(rr.right() for rr in all_rects)
+        # 合并裁剪框 + 抓取手柄
+        top = min(r.top(), grab_rect.top())
+        left = min(r.left(), grab_rect.left())
+        bottom = max(r.bottom(), grab_rect.bottom())
+        right = max(r.right(), grab_rect.right())
 
         return QRectF(left, top, right - left, bottom - top)
 
     def shape(self) -> QPainterPath:
-        """精确碰撞检测：裁剪框 + 抓取手柄 + 工具栏"""
+        """精确碰撞检测：裁剪框 + 抓取手柄（工具栏在框内已包含）"""
         path = QPainterPath()
         rect = self.rect()
         margin = max(PEN_WIDTH_SELECTED, PEN_WIDTH_INACTIVE) / 2
@@ -196,11 +194,8 @@ class CropItem(QGraphicsRectItem):
         path.addRect(rect.adjusted(-margin, -margin, margin, margin))
         # 抓取手柄
         grab_pos = self._grab_handle_pos(rect)
-        gh = GRAB_HANDLE_SIZE + GRAB_HIT_EXTRA
-        gh_half = gh / 2
-        path.addRect(QRectF(grab_pos.x() - gh_half, grab_pos.y() - gh_half, gh, gh))
-        # 工具栏背景
-        path.addRect(self._toolbar_bg_rect(rect))
+        gh = max(GRAB_HANDLE_HOVER, GRAB_HANDLE_RADIUS) + GRAB_HIT_EXTRA
+        path.addEllipse(grab_pos, gh, gh)
         return path
 
     @property
@@ -268,11 +263,13 @@ class CropItem(QGraphicsRectItem):
         painter.setPen(pen)
         painter.drawRect(rect)
 
-        # 选中时绘制手柄 + 工具栏（选中即一直显示，不依赖 hover）
-        # 注意：工具栏先画，手柄/连接线后画，确保连接线不被工具栏背景遮挡
+        # 自由旋转抓取手柄（始终显示，连接线样式跟随选框状态）
+        self._paint_grab_handle(painter, rect, is_selected)
+
+        # 选中时绘制四角手柄 + 工具栏
         if is_selected:
             self._paint_toolbar(painter, rect)
-            self._paint_handles(painter, rect)
+            self._paint_corner_handles(painter, rect)
 
         # 拖动时显示尺寸信息
         if self._drag_handle not in (HandlePosition.NONE, HandlePosition.BODY,
@@ -281,63 +278,63 @@ class CropItem(QGraphicsRectItem):
 
         painter.restore()
 
-    def _paint_handles(self, painter: QPainter, rect: QRectF) -> None:
-        hs = HANDLE_SIZE
-        hhs = HANDLE_HOVER_SIZE
-
-        # 统一使用 8×8 方块（参考设计规范）
-        all_handles = [
+    def _paint_corner_handles(self, painter: QPainter, rect: QRectF) -> None:
+        """绘制四角圆点手柄（仅选中时显示）"""
+        corner_handles = [
             (rect.topLeft(), HandlePosition.TOP_LEFT),
             (rect.topRight(), HandlePosition.TOP_RIGHT),
             (rect.bottomLeft(), HandlePosition.BOTTOM_LEFT),
             (rect.bottomRight(), HandlePosition.BOTTOM_RIGHT),
-            (QPointF(rect.center().x(), rect.top()), HandlePosition.TOP),
-            (QPointF(rect.center().x(), rect.bottom()), HandlePosition.BOTTOM),
-            (QPointF(rect.left(), rect.center().y()), HandlePosition.LEFT),
-            (QPointF(rect.right(), rect.center().y()), HandlePosition.RIGHT),
         ]
-        for pos, handle in all_handles:
-            size = hhs if self._hovered_handle == handle else hs
-            half = size / 2
-            painter.setPen(QPen(self._t_accent, 1.5))
+        for pos, handle in corner_handles:
+            r = CORNER_DOT_HOVER if self._hovered_handle == handle else CORNER_DOT_RADIUS
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(self._t_accent))
-            painter.drawRect(QRectF(pos.x() - half, pos.y() - half, size, size))
+            painter.drawEllipse(pos, r, r)
 
-        # 自由旋转抓取手柄（裁剪框上方旋转图标 + 连接线）
+    def _paint_grab_handle(self, painter: QPainter, rect: QRectF, is_selected: bool) -> None:
+        """绘制自由旋转抓取手柄（始终显示，连接线样式跟随选框状态）"""
         grab_pos = self._grab_handle_pos(rect)
         is_hovered = self._hovered_handle == HandlePosition.GRAB_ROTATION
-        grab_size = GRAB_HANDLE_SIZE + 6 if is_hovered else GRAB_HANDLE_SIZE
-        grab_half = grab_size / 2
+        grab_r = GRAB_HANDLE_HOVER if is_hovered else GRAB_HANDLE_RADIUS
 
-        # 连接线：裁剪框顶边 → 抓取手柄下边缘
-        line_pen = QPen(self._t_accent, 2.0)
-        line_pen.setStyle(Qt.PenStyle.SolidLine)
+        # 连接线：样式跟随选框边框
+        if is_selected:
+            line_pen = QPen(self._t_accent, PEN_WIDTH_SELECTED, Qt.PenStyle.SolidLine)
+        else:
+            line_pen = QPen(self._t_dashed, PEN_WIDTH_INACTIVE, Qt.PenStyle.CustomDashLine)
+            line_pen.setDashPattern(PEN_DASH_PATTERN)
+            line_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(line_pen)
         painter.drawLine(
             QPointF(rect.center().x(), rect.top()),
-            QPointF(grab_pos.x(), grab_pos.y() + GRAB_HANDLE_SIZE / 2),
+            QPointF(grab_pos.x(), grab_pos.y() + grab_r),
         )
 
-        # 实心圆形背景
-        grab_rect = QRectF(grab_pos.x() - grab_half, grab_pos.y() - grab_half, grab_size, grab_size)
+        # 实心蓝色圆点
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(self._t_accent))
-        painter.drawEllipse(grab_rect)
+        painter.drawEllipse(grab_pos, grab_r, grab_r)
 
         # hover 时白色 overlay
         if is_hovered:
             painter.setBrush(QBrush(QColor(255, 255, 255, 60)))
-            painter.drawEllipse(grab_rect)
+            painter.drawEllipse(grab_pos, grab_r, grab_r)
 
-        # 旋转图标（白色，居中）
-        icon = get_icon("rotate-ccw", "#FFFFFF")
-        icon_size = int(grab_size * 0.7)
-        icon_x = int(grab_pos.x() - icon_size / 2)
-        icon_y = int(grab_pos.y() - icon_size / 2)
-        icon.paint(painter, QRectF(icon_x, icon_y, icon_size, icon_size).toRect(),
-                   Qt.AlignmentFlag.AlignCenter)
+        # 角度数字（圆点右侧，灰色，稍大字号）
+        angle = self._crop_rect.rotation_angle
+        if abs(angle) > 0.05:
+            angle_text = f"{angle:.1f}°"
+            font = painter.font()
+            font.setPointSize(11)
+            font.setWeight(font.Weight.Medium)
+            painter.setFont(font)
+            painter.setPen(QPen(QColor("#888888")))
+            text_x = grab_pos.x() + grab_r + 6
+            text_y = grab_pos.y() - 6
+            painter.drawText(QPointF(text_x, text_y), angle_text)
 
-    # ---- 工具栏（右上角） ----
+    # ---- 工具栏（内部右上角） ----
 
     TOOLBAR_BUTTON_SIZE = 84
     TOOLBAR_GAP = 2
@@ -345,15 +342,15 @@ class CropItem(QGraphicsRectItem):
     TOOLBAR_ICON_COLOR = "#FFFFFF"  # 纯白，最大化对比度
 
     def _toolbar_bg_rect(self, rect: QRectF) -> QRectF:
-        """工具栏背景矩形（裁剪框上方偏右）"""
+        """工具栏背景矩形（裁剪框内部右上角）"""
         n = len(self.TOOLBAR_ICONS)
         total_w = self.TOOLBAR_BUTTON_SIZE * n + self.TOOLBAR_GAP * (n - 1)
         btn_h = self.TOOLBAR_BUTTON_SIZE
         bg_w = total_w + 16  # 8px 内边距两侧
-        bg_h = btn_h + 12    # 6px 内边距上下（面板总高96不变）
+        bg_h = btn_h + 12    # 6px 内边距上下
         return QRectF(
-            rect.right() - bg_w - 16,   # 右侧对齐，16px 外边距
-            rect.top() - bg_h - 12,     # 裁剪框上方，12px 间距
+            rect.right() - bg_w - 8,    # 右侧贴边，8px 内边距
+            rect.top() + 8,             # 顶部贴边，8px 内边距
             bg_w,
             bg_h,
         )
@@ -372,7 +369,7 @@ class CropItem(QGraphicsRectItem):
         return rects
 
     def _paint_toolbar(self, painter: QPainter, rect: QRectF) -> None:
-        """绘制裁剪框右上角的工具栏"""
+        """绘制裁剪框内部右上角的工具栏"""
         btn_rects = self._toolbar_rects(rect)
 
         # 背景
@@ -396,8 +393,7 @@ class CropItem(QGraphicsRectItem):
 
             # SVG 图标（0px padding → 84×84 填满按钮，最大化可见面积）
             icon = get_icon(icon_name, self.TOOLBAR_ICON_COLOR)
-            icon_rect = btn_rect
-            icon.paint(painter, icon_rect.toRect(), Qt.AlignmentFlag.AlignCenter)
+            icon.paint(painter, btn_rect.toRect(), Qt.AlignmentFlag.AlignCenter)
 
     def _paint_size_label(self, painter: QPainter, rect: QRectF) -> None:
         """拖动缩放手柄时显示尺寸浮层"""
@@ -431,7 +427,7 @@ class CropItem(QGraphicsRectItem):
         painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, text)
 
     def _grab_handle_pos(self, rect: QRectF) -> QPointF:
-        """返回自由旋转抓取手柄的中心位置（裁剪框上方）"""
+        """返回自由旋转抓取手柄的圆心位置（裁剪框上方）"""
         return QPointF(rect.center().x(), rect.top() - GRAB_HANDLE_OFFSET)
 
     def _toolbar_button_at(self, pos: QPointF) -> int:
@@ -468,21 +464,18 @@ class CropItem(QGraphicsRectItem):
 
     def _handle_at(self, pos: QPointF) -> str:
         rect = self.rect()
-        hs = HANDLE_HIT_RADIUS  # 独立触发半径，远大于视觉尺寸
 
         # 裁剪框旋转时，鼠标 pos 在旋转后的坐标系中，需要变换回未旋转坐标系
         # 才能和未旋转的手柄矩形正确匹配
         p = self._unrotated_pos(pos)
 
-        # 自由旋转抓取手柄
+        # 自由旋转抓取手柄（圆形命中检测）
         grab_pos = self._grab_handle_pos(rect)
-        grab_hit = GRAB_HANDLE_SIZE + GRAB_HIT_EXTRA
-        grab_half = grab_hit / 2
-        grab_rect = QRectF(grab_pos.x() - grab_half, grab_pos.y() - grab_half, grab_hit, grab_hit)
-        if grab_rect.contains(p):
+        grab_hit_r = max(GRAB_HANDLE_HOVER, GRAB_HANDLE_RADIUS) + GRAB_HIT_EXTRA
+        if (p - grab_pos).manhattanLength() < grab_hit_r * 1.4:  # manhattan 近似圆形
             return HandlePosition.GRAB_ROTATION
 
-        # 四角
+        # 四角（2× 命中半径）
         corners = [
             (rect.topLeft(), HandlePosition.TOP_LEFT),
             (rect.topRight(), HandlePosition.TOP_RIGHT),
@@ -490,19 +483,25 @@ class CropItem(QGraphicsRectItem):
             (rect.bottomRight(), HandlePosition.BOTTOM_RIGHT),
         ]
         for corner_pos, handle in corners:
-            if (p - corner_pos).manhattanLength() < hs:
+            if (p - corner_pos).manhattanLength() < CORNER_HIT_RADIUS:
                 return handle
 
-        # 四边
+        # 四边 — 整条边线均可触发（鼠标到线段的垂直距离 < EDGE_HIT_WIDTH）
         edges = [
-            (QPointF(rect.center().x(), rect.top()), HandlePosition.TOP),
-            (QPointF(rect.center().x(), rect.bottom()), HandlePosition.BOTTOM),
-            (QPointF(rect.left(), rect.center().y()), HandlePosition.LEFT),
-            (QPointF(rect.right(), rect.center().y()), HandlePosition.RIGHT),
+            (rect.top(), rect.left(), rect.right(), True, HandlePosition.TOP),       # 水平边
+            (rect.bottom(), rect.left(), rect.right(), True, HandlePosition.BOTTOM),  # 水平边
+            (rect.left(), rect.top(), rect.bottom(), False, HandlePosition.LEFT),     # 垂直边
+            (rect.right(), rect.top(), rect.bottom(), False, HandlePosition.RIGHT),   # 垂直边
         ]
-        for edge_pos, handle in edges:
-            if (p - edge_pos).manhattanLength() < hs:
-                return handle
+        for line_val, range_min, range_max, is_horizontal, handle in edges:
+            if is_horizontal:
+                # 水平边：y 方向距离 < 阈值，x 在边范围内
+                if abs(p.y() - line_val) < EDGE_HIT_WIDTH and range_min <= p.x() <= range_max:
+                    return handle
+            else:
+                # 垂直边：x 方向距离 < 阈值，y 在边范围内
+                if abs(p.x() - line_val) < EDGE_HIT_WIDTH and range_min <= p.y() <= range_max:
+                    return handle
 
         if rect.contains(p):
             return HandlePosition.BODY
