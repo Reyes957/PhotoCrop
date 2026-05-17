@@ -798,6 +798,8 @@ class MainWindow(QMainWindow):
             self._refresh_global_preview(sess, current_page)
 
     def _on_export(self) -> None:
+        # canvas.crop_rects 属性在返回前自动调用 sync_crop_items()，
+        # 确保导出使用用户调整后的最新数据。
         self._session_ctrl.save_current_state(
             self._canvas.crop_rects,
             self._canvas.get_undo_snapshot(),
@@ -1017,9 +1019,14 @@ class MainWindow(QMainWindow):
         self._on_view_single_requested(index)
 
     def _on_view_single_requested(self, index: int) -> None:
+        # canvas.crop_rects 属性在返回前自动调用 sync_crop_items()，
+        # 确保 Single View 获取到最新的 CropRect 数据。
+        rects = self._canvas.crop_rects
+        for i, r in enumerate(rects):
+            print(f"[DIAG SINGLE] rect[{i}] angle={r.rotation_angle:.2f}")
         self._view_coord.show_single()
         self._single_view.set_data(
-            self._canvas.source_image, self._canvas.crop_rects,
+            self._canvas.source_image, rects,
         )
         self._single_view.select_crop(index)
 
@@ -1079,6 +1086,13 @@ class MainWindow(QMainWindow):
         )
         self._update_button_states()
         self._update_image_list_panel()
+
+        # Single View：同步最新裁剪框数据
+        # canvas.crop_rects 属性在返回前自动调用 sync_crop_items()
+        if self._view_coord.is_single:
+            self._single_view._crop_rects = list(self._canvas.crop_rects)
+            self._single_view._update_preview()
+            self._single_view._update_overview()
 
         pdf_sess = self._session_ctrl.get_current_pdf_session()
         if pdf_sess is not None and self._extracted_panel._global_mode:

@@ -180,6 +180,7 @@ class ExtractedImagesPanel(QWidget):
 
     def refresh(self, crop_rects: list[CropRect]) -> None:
         self._crop_rects = list(crop_rects)
+        self._cache.clear()  # 清除缓存，强制重新生成缩略图
         self._refresh_timer.start(100)
 
     def add_page_results(self, page_idx: int, source_img: Image.Image,
@@ -236,6 +237,7 @@ class ExtractedImagesPanel(QWidget):
         self._all_pages_data = list(pages_data)
         self._current_editing_page = current_page
         self._current_editing_rects = current_rects
+        self._cache.clear()  # 清除缓存，强制重新生成缩略图
         self._global_refresh_timer.start(150)
 
     def get_page_and_index(self, global_idx: int) -> PageCropRef | None:
@@ -398,7 +400,7 @@ class ExtractedImagesPanel(QWidget):
     def _generate_thumbnail(self, source_img: Image.Image,
                             rect: CropRect) -> QPixmap | None:
         try:
-            cropped = export_photo_to_memory(source_img, rect)
+            cropped = export_photo_to_memory(source_img, rect, auto_rotate=False, trim_white=False)
             # 生成更高分辨率缩略图（120px），显示时缩放到 80px，提升清晰度
             cropped.thumbnail((120, 120), Image.Resampling.LANCZOS)
             pixmap = pil_to_pixmap(cropped)
@@ -418,7 +420,7 @@ class ExtractedImagesPanel(QWidget):
             return self._cache[cache_key]
 
         try:
-            cropped = export_photo_to_memory(self._source_image, rect)
+            cropped = export_photo_to_memory(self._source_image, rect, auto_rotate=False, trim_white=False)
             # 生成更高分辨率缩略图（120px），显示时缩放到 80px，提升清晰度
             cropped.thumbnail((120, 120), Image.Resampling.LANCZOS)
             pixmap = pil_to_pixmap(cropped)

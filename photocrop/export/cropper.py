@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import math
 import numpy as np
 from PIL import Image
 
@@ -43,8 +44,8 @@ def export_photo(
 ) -> Path:
     """从源图像中裁剪并导出一张照片
 
-    执行 project_rules.md §8 强制流程：
-    裁剪 → rotation → auto_rotate（可选） → 去白边
+    执行流程：
+    旋转校正裁剪 → auto_rotate（可选） → 去白边
 
     Args:
         source_img: 原始页面图像（PIL Image）
@@ -59,14 +60,16 @@ def export_photo(
     """
     output_path = Path(output_path)
 
-    # ---- 步骤 1: 裁剪 ----
-    cropped = _crop_image(source_img, rect)
-
-    # ---- 步骤 2: rotation ----
+    # ---- 步骤 1: 旋转校正裁剪 ----
+    # 如果裁剪框有旋转角度，先旋转原图再裁出轴对齐矩形，
+    # 把倾斜框内的内容提取出来并回正。旋转回正后再裁掉边角区域，
+    # 确保导出结果只包含蓝色框内的内容，不包含 AABB 边角的 PDF 白色背景。
     if rect.rotation_angle != 0.0:
-        cropped = _apply_rotation(cropped, rect.rotation_angle)
+        cropped = _rotate_and_crop(source_img, rect)
+    else:
+        cropped = _crop_image(source_img, rect)
 
-    # ---- 步骤 3: auto_rotate（可选）----
+    # ---- 步骤 2: auto_rotate（可选）----
     if auto_rotate:
         try:
             angle = estimate_rotation_angle(cropped)
@@ -75,11 +78,11 @@ def export_photo(
         except (ValueError, RuntimeError, OSError):
             pass  # 自动旋转失败时跳过（不影响导出）
 
-    # ---- 步骤 4: 去白边 ----
+    # ---- 步骤 3: 去白边 ----
     if trim_white:
         cropped = _trim_white_border(cropped)
 
-    # ---- 步骤 5: 尺寸限制 ----
+    # ---- 步骤 4: 尺寸限制 ----
     if max_width > 0 or max_height > 0:
         cropped = _resize_if_needed(cropped, max_width, max_height)
 
@@ -93,23 +96,53 @@ def export_photo(
 # 内部函数
 # ============================================================
 
+# 裁剪框笔触半宽（CropItem PEN_WIDTH=10px，笔触居中于边界线）
+# 设为 +5 对齐外线，0 对齐中线，-5 对齐内线
+_CROP_PEN_HALF = -5
+
+
 def _crop_image(source_img: Image.Image, rect: CropRect) -> Image.Image:
     """从源图像裁剪指定区域
 
+    如果矩形有旋转角度，计算旋转后四边形的最小轴对齐外包围盒（AABB），
+    使裁剪结果包含倾斜蓝色框所覆盖的全部区域内容。
+    如果矩形没有旋转，直接使用 to_pixel_tuple() 的轴对齐区域。
+
     Args:
         source_img: 原始页面图像
-        rect: CropRect 裁剪区域
+        rect: CropRect 裁剪区域（可含 rotation_angle）
 
     Returns:
         裁剪后的 PIL Image
     """
-    box = rect.to_pixel_tuple()
-    # 确保裁剪区域在图像范围内
+    angle = rect.rotation_angle
+    if angle == 0.0:
+        box = rect.to_pixel_tuple()
+        x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+    else:
+        # 计算旋转后四边形的最小轴对齐外包围盒
+        cx, cy = rect.x, rect.y
+        hw, hh = rect.width / 2, rect.height / 2
+        rad = math.radians(angle)
+        cos_a, sin_a = math.cos(rad), math.sin(rad)
+        corners = [
+            (cx - hw * cos_a + hh * sin_a, cy - hw * sin_a - hh * cos_a),
+            (cx + hw * cos_a + hh * sin_a, cy + hw * sin_a - hh * cos_a),
+            (cx + hw * cos_a - hh * sin_a, cy + hw * sin_a + hh * cos_a),
+            (cx - hw * cos_a - hh * sin_a, cy - hw * sin_a + hh * cos_a),
+        ]
+        x1 = min(c[0] for c in corners)
+        y1 = min(c[1] for c in corners)
+        x2 = max(c[0] for c in corners)
+        y2 = max(c[1] for c in corners)
+
+    # 对齐笔触线：_CROP_PEN_HALF 设为 -5 对齐内线，0 中线，+5 外线
+    # 公式统一为：边界 - _CROP_PEN_HALF（即 -(-5)=+5 使内线向里收）
     img_w, img_h = source_img.size
-    x1 = max(0, box[0])
-    y1 = max(0, box[1])
-    x2 = min(img_w, box[2])
-    y2 = min(img_h, box[3])
+    x1 = max(0, int(x1) - _CROP_PEN_HALF)
+    y1 = max(0, int(y1) - _CROP_PEN_HALF)
+    x2 = min(img_w, int(x2) + _CROP_PEN_HALF)
+    y2 = min(img_h, int(y2) + _CROP_PEN_HALF)
 
     if x2 <= x1 or y2 <= y1:
         raise ValueError(f"裁剪区域无效: ({x1}, {y1}, {x2}, {y2})")
@@ -133,6 +166,82 @@ def _apply_rotation(img: Image.Image, angle: float) -> Image.Image:
     # PIL 的 rotate 是逆时针为正，所以取负
     rotated = img.rotate(-angle, resample=Image.Resampling.BICUBIC, expand=True)
     return rotated
+
+
+def _rotate_and_crop(source_img: Image.Image, rect: CropRect) -> Image.Image:
+    """旋转校正裁剪：提取旋转矩形区域的内容，输出为正的照片
+
+    核心逻辑：
+    裁剪框在原图上旋转了 rect.rotation_angle 度。
+    要提取框内内容，需要：
+    1. 计算旋转矩形四个角在原图中的坐标
+    2. 计算四个角的包围盒（轴对齐），裁出这个区域
+    3. 将裁出的区域反向旋转，使裁剪框变为轴对齐
+    4. 从旋转后的区域裁出最终矩形
+
+    Args:
+        source_img: 原始页面图像
+        rect: CropRect 裁剪区域（含 rotation_angle）
+
+    Returns:
+        裁剪并转正的 PIL Image
+    """
+    angle = rect.rotation_angle
+    if angle == 0.0:
+        return _crop_image(source_img, rect)
+
+    cx, cy = rect.x, rect.y
+    hw, hh = rect.width / 2, rect.height / 2
+    rad = math.radians(angle)
+    cos_a, sin_a = math.cos(rad), math.sin(rad)
+
+    # 旋转矩形的四个角（相对于中心）
+    corners_local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
+    corners = []
+    for lx, ly in corners_local:
+        rx = cx + lx * cos_a - ly * sin_a
+        ry = cy + lx * sin_a + ly * cos_a
+        corners.append((rx, ry))
+
+    # 包围盒
+    xs = [p[0] for p in corners]
+    ys = [p[1] for p in corners]
+    img_w, img_h = source_img.size
+    bbox_x1 = max(0, int(min(xs)) - 10)
+    bbox_y1 = max(0, int(min(ys)) - 10)
+    bbox_x2 = min(img_w, int(max(xs)) + 10)
+    bbox_y2 = min(img_h, int(max(ys)) + 10)
+
+    if bbox_x2 <= bbox_x1 or bbox_y2 <= bbox_y1:
+        raise ValueError(f"旋转裁剪区域无效")
+
+    # 裁出包围盒区域
+    cropped = source_img.crop((bbox_x1, bbox_y1, bbox_x2, bbox_y2))
+
+    # 旋转中心在 cropped 中的坐标
+    rcx = cx - bbox_x1
+    rcy = cy - bbox_y1
+
+    # 反向旋转，使裁剪框变为轴对齐
+    # CropRect.rotation_angle 顺时针为正（Qt 惯例），
+    # PIL.Image.rotate() 逆时针为正，所以直接传 angle 实现逆时针回正。
+    rotated = cropped.rotate(
+        angle,
+        resample=Image.Resampling.BICUBIC,
+        expand=False,
+        center=(rcx, rcy),
+    )
+
+    # 从旋转后的图像中裁出轴对齐矩形
+    final_x1 = max(0, int(rcx - hw))
+    final_y1 = max(0, int(rcy - hh))
+    final_x2 = min(rotated.width, int(rcx + hw))
+    final_y2 = min(rotated.height, int(rcy + hh))
+
+    if final_x2 <= final_x1 or final_y2 <= final_y1:
+        raise ValueError(f"旋转裁剪区域无效")
+
+    return rotated.crop((final_x1, final_y1, final_x2, final_y2))
 
 
 def _trim_white_border(
@@ -246,9 +355,10 @@ def export_photo_to_memory(
 
     用于预览面板和 Single View 显示。
     """
-    cropped = _crop_image(source_img, rect)
     if rect.rotation_angle != 0.0:
-        cropped = _apply_rotation(cropped, rect.rotation_angle)
+        cropped = _rotate_and_crop(source_img, rect)
+    else:
+        cropped = _crop_image(source_img, rect)
     if auto_rotate:
         try:
             angle = estimate_rotation_angle(cropped)

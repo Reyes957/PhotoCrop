@@ -138,8 +138,27 @@ class CropCanvas(QGraphicsView):
     def crop_items(self) -> list[CropItem]:
         return list(self._crop_items)
 
+    def sync_crop_items(self) -> None:
+        """强制同步所有 CropItem 的视觉状态到 CropRect 数据。
+
+        在切换到 Single View 或导出前调用，确保 CropRect 数据与用户
+        在画布上看到的裁剪框完全一致。修复调整后预览/导出不反映变化的问题。
+
+        _sync_to_rect() 从 QGraphicsRectItem 的本地 rect 读取尺寸和位置，
+        写入 CropRect 的 x/y/width/height 字段（rotation_angle 由独立的
+        旋转拖拽路径实时更新，不需要在此同步）。
+        """
+        for item in self._crop_items:
+            item._sync_to_rect()
+
     @property
     def crop_rects(self) -> list[CropRect]:
+        """返回当前所有裁剪框的 CropRect 对象（引用，非拷贝）。
+
+        关键：返回的 CropRect 对象即 CropItem 内部持有的同一对象。
+        每次访问前强制同步，确保 CropRect 数据与 Qt 视觉状态一致。
+        """
+        self.sync_crop_items()
         return [item.crop_rect for item in self._crop_items]
 
     @property

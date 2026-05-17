@@ -142,6 +142,10 @@ class CropItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
+        # Python 端显式缓存 rect，避免 Qt 绑定层返回值不一致导致 sync 失败。
+        # 所有修改 rect 的地方（setRect / _sync_from_rect / mouseMoveEvent）同步更新。
+        self._py_rect = QRectF()
+
         # 从 CropRect 同步位置
         self._sync_from_rect()
 
@@ -204,22 +208,31 @@ class CropItem(QGraphicsRectItem):
 
     def _setup_transform_origin(self):
         """设置旋转中心为裁剪框中心（必须在 rect 或 rotation 变化后调用）"""
-        c = self.rect().center()
+        c = self._py_rect.center()
         self.setTransformOriginPoint(c)
 
     def _sync_from_rect(self):
         r = self._crop_rect
-        self.setRect(QRectF(
+        new_rect = QRectF(
             r.x - r.width / 2,
             r.y - r.height / 2,
             r.width,
             r.height,
-        ))
+        )
+        self.setRect(new_rect)
+        self._py_rect = new_rect  # Python 端同步缓存
         self._setup_transform_origin()
         self.setRotation(r.rotation_angle)
 
     def _sync_to_rect(self):
-        rect = self.rect()
+        """从 Python 端缓存的 rect 更新 CropRect 的 x/y/width/height。
+
+        注意：rotation_angle 不在本方法中同步——旋转角度由鼠标拖拽
+        直接写入 self._crop_rect.rotation_angle（mouseMoveEvent 旋转分支）。
+        调用 _sync_to_rect 的场景（resize / move / 强制同步）不会改变旋转角度，
+        因此不需要覆写 rotation_angle，否则会丢失用户通过旋转手柄设的角度。
+        """
+        rect = self._py_rect
         self._crop_rect.x = rect.center().x()
         self._crop_rect.y = rect.center().y()
         self._crop_rect.width = rect.width()
@@ -320,19 +333,6 @@ class CropItem(QGraphicsRectItem):
         if is_hovered:
             painter.setBrush(QBrush(QColor(255, 255, 255, 60)))
             painter.drawEllipse(grab_pos, grab_r, grab_r)
-
-        # 角度数字（圆点右侧，灰色，稍大字号）
-        angle = self._crop_rect.rotation_angle
-        if abs(angle) > 0.05:
-            angle_text = f"{angle:.1f}°"
-            font = painter.font()
-            font.setPointSize(11)
-            font.setWeight(font.Weight.Medium)
-            painter.setFont(font)
-            painter.setPen(QPen(QColor("#888888")))
-            text_x = grab_pos.x() + grab_r + 6
-            text_y = grab_pos.y() - 6
-            painter.drawText(QPointF(text_x, text_y), angle_text)
 
     # ---- 工具栏（内部右上角） ----
 
@@ -443,7 +443,7 @@ class CropItem(QGraphicsRectItem):
     # ---- 手柄检测 ----
 
     def _handle_at(self, pos: QPointF) -> str:
-        rect = self.rect()
+        rect = self._py_rect
 
         # item 级旋转（setRotation）自动将 event.pos() 转换到 item 本地坐标系
         # pos 已经是未旋转坐标，直接使用即可
@@ -562,7 +562,11 @@ class CropItem(QGraphicsRectItem):
 
             self._drag_handle = self._handle_at(event.pos())
             self._drag_start = event.pos()
-            self._drag_rect = self.rect()
+            self._drag_start_scene = event.scenePos()  # 记录场景坐标起始点（BODY + RESIZE 共用）
+            self._drag_rect = QRectF(self._py_rect)  # 使用 Python 端缓存的 rect
+            # BODY 拖动：额外记录框中心场景坐标
+            if self._drag_handle == HandlePosition.BODY:
+                self._drag_rect_center_scene = self.mapToScene(self._drag_rect.center())
 
             # 整体拖动时暂停呼吸动画，减少重绘开销，提升跟手性
             if self._drag_handle == HandlePosition.BODY:
@@ -576,31 +580,37 @@ class CropItem(QGraphicsRectItem):
         if self._drag_handle == HandlePosition.NONE:
             return
 
-        delta = event.pos() - self._drag_start
         new_rect = QRectF(self._drag_rect)
 
         if self._drag_handle == HandlePosition.BODY:
-            new_rect.translate(delta)
+            # 全程场景坐标计算，避免旋转导致的坐标系偏差
+            new_center_scene = self._drag_rect_center_scene + (event.scenePos() - self._drag_start_scene)
+            new_center_local = self.mapFromScene(new_center_scene)
+            offset = new_center_local - self._drag_rect.center()
+            new_rect.translate(offset)
         elif self._drag_handle in (HandlePosition.ROTATION, HandlePosition.GRAB_ROTATION):
             # 在场景坐标系中计算角度（item 旋转后 event.pos() 在本地坐标系，
             # 需要转到场景坐标才能正确反映鼠标在屏幕上的方位）
-            center_scene = self.mapToScene(self.rect().center())
+            center_scene = self.mapToScene(self._py_rect.center())
             mouse_scene = event.scenePos()
             dx = mouse_scene.x() - center_scene.x()
             dy = mouse_scene.y() - center_scene.y()
 
-            # atan2 返回弧度，转换为角度
-            # Qt 坐标系 y 轴向下，atan2(-dy,dx) 得到标准数学角度
-            angle_rad = math.atan2(-dy, dx)
+            # 旋转方向：鼠标往哪拖，框的顶部就往哪偏（直接操控感）
+            # atan2(-dy, -dx) 在标准数学坐标系中，但反转 x 方向：
+            #   12 点钟(dx=0,dy=-40): atan2(40, 0) = 90° → rotation = 0° ✓
+            #   左拖(dx<0,dy≈-40):    atan2(40, 正值) < 90° → rotation < 0°
+            #     → 负角度 = 顺时针 = 框顶部向左偏 ✓
+            #   右拖(dx>0,dy≈-40):    atan2(40, 负值) > 90° → rotation > 0°
+            #     → 正角度 = 逆时针 = 框顶部向右偏 ✓
+            angle_rad = math.atan2(-dy, -dx)
             angle_deg = math.degrees(angle_rad)
-
-            # 从 12 点钟方向顺时针：鼠标在正上方=0°，左侧=正值（逆时针）
             rotation = normalize_angle(angle_deg - 90.0)
 
-            # 吸附到 0°, 90°, -90°, 180°（容差 ±15°）
+            # 吸附到 0°, 90°, -90°, 180°
             snap_angles = [0.0, 90.0, -90.0, 180.0]
             for snap in snap_angles:
-                if abs(rotation - snap) < 15:
+                if abs(rotation - snap) < 0.5:
                     rotation = snap
                     break
 
@@ -614,14 +624,27 @@ class CropItem(QGraphicsRectItem):
             event.accept()
             return
         else:
+            # 缩放手柄：使用场景坐标计算位移，再投影回本地坐标轴，
+            # 避免旋转后 item 本地坐标系与屏幕方向不一致导致的"不跟手"问题。
+            #
+            # 原来直接用 event.pos() - _drag_start（本地坐标差），
+            # 旋转后本地 X/Y 轴与屏幕 X/Y 轴不一致，导致边线拖拽有非预期偏移。
+            #
+            # 现在将场景坐标位移按 item 的旋转角度反旋转到本地坐标系，
+            # 保证 场景水平位移 → 本地 X 轴位移，场景垂直位移 → 本地 Y 轴位移。
+            sd = event.scenePos() - self._drag_start_scene
+            angle_rad = math.radians(self.rotation())
+            cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
+            local_dx = sd.x() * cos_a + sd.y() * sin_a
+            local_dy = -sd.x() * sin_a + sd.y() * cos_a
             if HandlePosition.LEFT in self._drag_handle:
-                new_rect.setLeft(self._drag_rect.left() + delta.x())
+                new_rect.setLeft(self._drag_rect.left() + local_dx)
             if HandlePosition.RIGHT in self._drag_handle:
-                new_rect.setRight(self._drag_rect.right() + delta.x())
+                new_rect.setRight(self._drag_rect.right() + local_dx)
             if HandlePosition.TOP in self._drag_handle:
-                new_rect.setTop(self._drag_rect.top() + delta.y())
+                new_rect.setTop(self._drag_rect.top() + local_dy)
             if HandlePosition.BOTTOM in self._drag_handle:
-                new_rect.setBottom(self._drag_rect.bottom() + delta.y())
+                new_rect.setBottom(self._drag_rect.bottom() + local_dy)
 
             # 最小尺寸
             min_size = 20
@@ -650,6 +673,8 @@ class CropItem(QGraphicsRectItem):
                         new_rect.setWidth(new_w)
 
         self.setRect(new_rect)
+        self._py_rect = new_rect  # Python 端同步缓存，确保 sync 使用正确值
+        self._setup_transform_origin()  # 立即更新旋转枢轴，防止旋转偏移累积
         self._sync_to_rect()
         # _on_changed 延迟到 release 时触发，避免拖动期间信号风暴
         event.accept()

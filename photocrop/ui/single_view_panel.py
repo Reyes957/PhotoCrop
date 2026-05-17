@@ -219,20 +219,27 @@ class SingleViewPanel(QWidget):
 
         c = self._colors
         for i, rect in enumerate(self._crop_rects):
-            x1, y1, x2, y2 = rect.to_pixel_tuple()
             is_current = (i == self._current_index)
             pen = QPen(
-                QColor(c.accent) if is_current else QColor(c.accent),
+                QColor(c.accent) if is_current else QColor(c.text_secondary),
                 2.0 if is_current else 1.0,
             )
-            if not is_current:
-                pen.setColor(QColor(c.text_secondary))
-                pen.setWidth(1.0)
-            rect_item = self._overview_scene.addRect(x1, y1, x2 - x1, y2 - y1, pen)
+            # 使用 QGraphicsRectItem + setRotation 显示旋转矩形
+            from PySide6.QtWidgets import QGraphicsRectItem as QRI
+            rect_item = QRI(
+                rect.x - rect.width / 2,
+                rect.y - rect.height / 2,
+                rect.width,
+                rect.height,
+            )
+            rect_item.setPen(pen)
+            rect_item.setTransformOriginPoint(rect.width / 2, rect.height / 2)
+            rect_item.setRotation(rect.rotation_angle)
             if is_current:
                 c_accent = QColor(c.accent)
                 c_accent.setAlpha(20)
                 rect_item.setBrush(QBrush(c_accent))
+            self._overview_scene.addItem(rect_item)
             self._rect_items.append(rect_item)
 
         self._overview_view.fitInView(
@@ -264,7 +271,7 @@ class SingleViewPanel(QWidget):
 
         rect = self._crop_rects[self._current_index]
         try:
-            cropped = export_photo_to_memory(self._source_image, rect)
+            cropped = export_photo_to_memory(self._source_image, rect, auto_rotate=False, trim_white=False)
             # 动态适配可用空间
             available = self._preview_label.size()
             max_w = max(available.width() - 20, 200)
@@ -273,6 +280,7 @@ class SingleViewPanel(QWidget):
             pixmap = pil_to_pixmap(cropped)
             self._preview_label.setText("")
             self._preview_label.setPixmap(pixmap)
+            self._preview_label.repaint()  # 强制立即视觉刷新
         except (ValueError, RuntimeError, OSError):
             self._preview_label.setText("无法生成预览")
             self._preview_label.setPixmap(QPixmap())

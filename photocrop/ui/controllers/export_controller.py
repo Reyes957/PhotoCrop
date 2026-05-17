@@ -89,6 +89,8 @@ class ExportController(QObject):
 
         rects = canvas.crop_rects
         source_img = canvas.source_image
+        for i, r in enumerate(rects):
+            print(f"[DIAG EXPORT] rect[{i}] angle={r.rotation_angle:.2f} w={r.width:.0f} h={r.height:.0f}")
 
         if not rects or source_img is None:
             return 0, [], current
