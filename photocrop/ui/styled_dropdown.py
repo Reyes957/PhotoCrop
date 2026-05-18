@@ -407,7 +407,7 @@ class _DropdownPanelBase(QWidget):
     def _compute_panel_height(self) -> int:
         """根据选项行的固定高度计算面板高度"""
         total = 0
-        for row in self._options:
+        for _row in self._options:
             total += self._ROW_HEIGHT
         cm = self._CONTENT_MARGINS
         sp = self._CONTENT_SPACING

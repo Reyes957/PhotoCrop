@@ -140,7 +140,8 @@ def run_cli(args) -> int:
 def run_gui(args) -> int:
     """GUI 模式：启动 PySide6 界面"""
     # 抑制 macOS IMK "mach port" 警告（系统级 stderr 输出，无法从应用层面消除）
-    import platform, os
+    import os
+    import platform
     _stderr_fd = None
     if platform.system() == "Darwin":
         _stderr_fd = os.dup(2)

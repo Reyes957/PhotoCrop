@@ -41,13 +41,13 @@ from photocrop.ui.controllers.theme_controller import ThemeController
 from photocrop.ui.controllers.view_coordinator import ViewCoordinator
 from photocrop.ui.crop_options_panel import CropOptionsPanel
 from photocrop.ui.export_dialog import ExportDialog
-from photocrop.ui.styled_dropdown import StyledDropdown
 from photocrop.ui.extracted_images_panel import ExtractedImagesPanel
 from photocrop.ui.icons import get_icon
 from photocrop.ui.image_list_panel import ImageListPanel
 from photocrop.ui.press_button import PressButton
 from photocrop.ui.single_view_panel import SingleViewPanel
 from photocrop.ui.state import AppState, SessionState
+from photocrop.ui.styled_dropdown import StyledDropdown
 from photocrop.ui.theme import FONT_DISPLAY, FONT_FAMILY, FontSize, FontWeight, theme
 from photocrop.ui.toast import show_toast
 

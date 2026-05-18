@@ -13,14 +13,12 @@ Covers gaps in existing test coverage:
 from __future__ import annotations
 
 import copy
-import math
 
 import pytest
 from PIL import Image
 
-from photocrop.utils.crop_rect import CropRect
 from photocrop.ui.undo_manager import UndoManager
-
+from photocrop.utils.crop_rect import CropRect
 
 # ============================================================
 # CropRect — edge cases not covered by existing tests
@@ -360,7 +358,7 @@ class TestToolbarButtonDetection:
             positions.append((rx, y, btn_w, btn_w))
 
         # All buttons should have same size (28×28)
-        for (x, y, w, h) in positions:
+        for (_x, _y, w, h) in positions:
             assert w == 28
             assert h == 28
 
@@ -601,8 +599,8 @@ class TestSessionControllerNavigation:
     """Test SessionController page navigation logic."""
 
     def test_get_sibling_page_forward(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -616,8 +614,8 @@ class TestSessionControllerNavigation:
         assert next_key == "doc.pdf##PAGE##3"
 
     def test_get_sibling_page_backward(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -631,8 +629,8 @@ class TestSessionControllerNavigation:
         assert prev_key == "doc.pdf##PAGE##0"
 
     def test_get_sibling_page_out_of_bounds(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -646,8 +644,8 @@ class TestSessionControllerNavigation:
         assert ctrl.get_sibling_page_key("doc.pdf##PAGE##2", 1) is None
 
     def test_get_sibling_page_non_pdf(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -659,8 +657,8 @@ class TestSessionControllerNavigation:
         assert ctrl.get_sibling_page_key("img.jpg", 1) is None
 
     def test_get_current_pdf_session_from_page_key(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -675,8 +673,8 @@ class TestSessionControllerNavigation:
         assert result is sess
 
     def test_get_session_crop_count(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -695,8 +693,8 @@ class TestSessionControllerNavigation:
         assert ctrl.get_page_crop_count("doc.pdf", 2) == 0
 
     def test_get_crop_counts_total(self):
-        from photocrop.ui.state import AppState, SessionState
         from photocrop.ui.controllers.session_controller import SessionController
+        from photocrop.ui.state import AppState, SessionState
 
         state = AppState()
         ctrl = SessionController(state)
@@ -795,7 +793,7 @@ class TestEnginePipelineComprehensive:
     def test_combined_detector_import(self):
         """CombinedDetector should be importable (though deprecated)."""
         import warnings
-        with warnings.catch_warnings(record=True) as w:
+        with warnings.catch_warnings(record=True):
             warnings.simplefilter("always")
             from photocrop.engine.combined_detector import CombinedDetector
             # May or may not trigger DeprecationWarning depending on import order
@@ -1003,16 +1001,18 @@ class TestRotationEstimatorEdgeCases:
     """Test rotation estimator with edge cases."""
 
     def test_estimate_from_array_empty(self):
-        from photocrop.engine.rotation_estimator import estimate_from_array
         import numpy as np
+
+        from photocrop.engine.rotation_estimator import estimate_from_array
         arr = np.zeros((100, 100), dtype=np.uint8)
         angle = estimate_from_array(arr)
         # Should return 0 for uniform image
         assert angle is not None
 
     def test_estimate_batch_empty(self):
-        from photocrop.engine.rotation_estimator import estimate_batch
         import numpy as np
+
+        from photocrop.engine.rotation_estimator import estimate_batch
         arr = np.zeros((100, 100), dtype=np.uint8)
         angles = estimate_batch(arr)
         assert isinstance(angles, list)
