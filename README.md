@@ -1,56 +1,49 @@
 # PhotoCrop
 
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
+![Release](https://img.shields.io/github/v/release/Reyes957/PhotoCrop)
+![Platform](https://img.shields.io/badge/Platform-macOS-lightgrey.svg)
+
 [中文文档](README_CN.md)
 
-A Python desktop application that automatically detects and crops individual photos from scanned PDF album pages.
+Automatically detect and crop individual photos from scanned album pages. A Python desktop app for macOS.
 
-**Problem:** You have a photo album. You scan its pages to PDF. Now you want the individual photos — not the whole page. Doing this by hand is tedious.
-
-**What PhotoCrop does:** Feed it a scanned page (image or PDF), and it finds each photo, crops them out, optionally corrects rotation, trims white borders, and exports clean individual image files.
+<p align="center">
+  <img src="assets/light-mode.png" alt="PhotoCrop" width="800">
+</p>
 
 ---
 
 ## Why this exists
 
-I found some old family albums over the Chinese New Year. The photos were all shot on film. Some of the people in them are gone. Some exist only in memory.
+I was born in the late '90s. Families didn't take many photos back then. Everyone used film cameras. The few childhood photos I have were all shot on film. They can't be reprinted anymore. Most exist only as paper prints in old albums.
 
-There were no digital copies. I wanted to keep them.
+Those albums sit in corners around my parents' house. I might open them once a year, during Chinese New Year. Many of the people in those photos are gone.
 
-PhotoCrop does one thing: crop photos cleanly from scanned pages. No AI enhancement, no AI restoration. When you look at a blurry old photo and a face comes to mind, no AI can reproduce that. The face you remember is more real than any pixel.
+Twenty years, gone like a dream.
 
-You can take the cropped photos and run them through AI restoration if you want — GPT is good at that. But this tool is just about cropping. If looking at the photo brings someone back to you, that's enough.
+If you're around my age, you're probably working now. Your office has a scanner. Take those old albums, run them through, make a PDF of the past. And those Polaroids - they have no digital version. Just the one paper copy.
 
-The whole detection pipeline runs locally with offline models. Your photos never leave your machine, and nothing gets sent off for training. Your memories stay yours.
+I wanted to turn them into digital memories. That's why I built this.
+
+I was PhotoCrop's first user. The reason I made it - the reason I code at all - is to turn those memories into something that can flow through chats, travel across hard drives, live on in data. Not to let old albums slowly rot in a cabinet until everyone in the photos is gone, until the person who owns the album no longer recognizes the faces inside, and throws it away.
+
+PhotoCrop does one thing: crop photos cleanly from scanned pages. No AI enhancement, no restoration. When you look at a blurry old photo and a face comes to mind, no algorithm can reproduce that. The face you remember is more real than any pixel.
+
+You can take the cropped photos and run them through AI restoration if you want. But this tool is just about cropping. If seeing the photo brings someone back to you, that's enough.
+
+The detection pipeline runs locally. Your photos never leave your machine, and nothing gets sent off for training.
 
 ---
 
-## Features
+## Contents
 
-- **Multiple detection engines** — Enhanced CV (default, better for low-quality scans), Traditional CV (edge detection + morphology), Combined detector (IoU voting fusion), and YOLO-World zero-shot open-vocabulary detection
-- **Pluggable detector architecture** — ABC base class + factory pattern; swap detectors or add your own
-- **Three modes** — CLI for scripting, GUI (PySide6) for interactive editing, PDF batch for bulk processing
-- **Controller architecture** — 5 dedicated controllers (Detection, Export, Session, Theme, View) decouple business logic from Qt widgets
-- **Global state management** — AppState observable container with signal-based subscriptions for all UI components
-- **Multi-image management** — Left panel with thumbnails, file names, and crop counts; right-click context menu
-- **Crop property panel** — Real-time editing of Width/Height/X/Y/Rotation with aspect ratio lock
-- **Crop result preview** — 2-column grid with LRU cache; click to select or delete
-- **PDF multi-page expand** — Left panel shows PDF as parent item + N child items with thumbnails
-- **PDF global cross-page preview** — Preview all pages' crop boxes in one view, grouped by page, with cross-page selection and deletion
-- **Crop box rotation** — 90° clockwise/counter-clockwise rotation from the floating toolbar
-- **Single View** — Side-by-side layout: original thumbnail + extracted full-size image with page navigation
-- **Batch export dialog** — Format (JPEG/PNG/TIFF), quality, max dimensions, filename template, auto-rotation, white-border trimming
-- **Template system** — Percentage-based crop templates that work across different images
-- **Sync & Transform** — Sync crop dimensions across selections; flip horizontal/vertical
-- **Smart export** — Auto-rotation correction, white-border trimming, EXIF metadata, multi-format output
-- **Light/Dark theme** — Dual theme with 350ms cubic-bezier color transition animation
-- **Toast notifications** — Non-modal slide-in notifications (300ms in, 2.5s stay, 200ms out, max 3 stacked)
-- **Drag & drop import** — Drag files onto canvas with overlay feedback, supports 8 file formats
-- **Press animation** — PressButton with scale(0.97) micro-interaction on click
-- **Undo/Redo** — Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y for all crop operations
-- **Multi-select** — Ctrl+Click, Ctrl+A (select all), Tab/Shift+Tab (cycle), Esc (deselect)
-- **Keyboard shortcuts** — Ctrl+O (load), Ctrl+D (detect), Ctrl+E (export), arrow keys (page navigation)
-- **User config** — Optional `~/.config/photocrop/config.yaml` for persistent preferences
-- **Configurable** — Max photo count, minimum size thresholds, fallback behavior, and more
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Requirements](#requirements)
 
 ---
 
@@ -62,13 +55,13 @@ cd PhotoCrop
 pip install -e ".[gui]"
 ```
 
-For YOLO-World (zero-shot open-vocabulary detection):
+For YOLO-World (optional, zero-shot detection):
 
 ```bash
 pip install -e ".[all]"
 ```
 
-Or install everything from `requirements.txt`:
+Or use `requirements.txt`:
 
 ```bash
 pip install -r requirements.txt
@@ -76,23 +69,22 @@ pip install -r requirements.txt
 
 ---
 
-## Quick Start
+## Quick start
 
-### CLI — single image
+### CLI - single image
 
 ```bash
 python -m photocrop.main page.jpg --max-count 4
 ```
 
-### GUI — interactive editor
+### GUI - interactive editor
 
 ```bash
 python -m photocrop.main --gui
-# or load an image directly:
 python -m photocrop.main --gui page.jpg
 ```
 
-### PDF — batch process
+### PDF - batch process
 
 ```bash
 python -m photocrop.main --pdf album.pdf --output ./photos/
@@ -101,14 +93,15 @@ python -m photocrop.main --pdf album.pdf --output ./photos/
 ### Choose a detector
 
 ```bash
-python -m photocrop.main page.jpg --detector enhanced-cv  # Default: Enhanced CV
-python -m photocrop.main page.jpg --detector cv            # Traditional CV (edge detection)
-python -m photocrop.main page.jpg --detector combined      # IoU voting fusion
-python -m photocrop.main page.jpg --detector yolo-world   # YOLO-World (requires model)
-python -m photocrop.main page.jpg --detector model        # Placeholder for vision API detectors
+python -m photocrop.main page.jpg --detector enhanced-cv   # Default
+python -m photocrop.main page.jpg --detector cv
+python -m photocrop.main page.jpg --detector combined
+python -m photocrop.main page.jpg --detector yolo-world
+python -m photocrop.main page.jpg --detector model
 ```
 
-### GUI keyboard shortcuts
+<details>
+<summary>GUI keyboard shortcuts</summary>
 
 | Shortcut | Action |
 |----------|--------|
@@ -117,66 +110,100 @@ python -m photocrop.main page.jpg --detector model        # Placeholder for visi
 | Ctrl+E | Export all |
 | Ctrl+Z | Undo |
 | Ctrl+Shift+Z / Ctrl+Y | Redo |
-| ← → | Previous/next page |
+| <- -> | Previous/next page |
 | Delete / Backspace | Remove selected crop box |
 | Tab / Shift+Tab | Cycle through crop boxes |
 | Ctrl+A | Select all crop boxes |
 | Ctrl+Click | Add/remove from selection |
 | Esc | Deselect all |
 
+</details>
+
 ---
 
-## Architecture
+<details>
+<summary><h2 style="display:inline">Features</h2></summary>
+
+- Multiple detection engines - Enhanced CV (default, better for low-quality scans), Traditional CV (edge detection + morphology), Combined detector (IoU voting fusion), YOLO-World zero-shot detection
+- Pluggable detector architecture - ABC base class + factory pattern; write your own
+- Three modes - CLI for scripting, GUI for interactive editing, PDF batch for bulk processing
+- Controller architecture - 5 controllers (Detection, Export, Session, Theme, View) decouple logic from Qt widgets
+- Global state management - AppState observable container with signal subscriptions
+- Multi-image management - Left panel with thumbnails, filenames, crop counts; right-click menu
+- Crop property panel - Real-time Width/Height/X/Y/Rotation editing with aspect ratio lock
+- Crop result preview - 2-column grid with LRU cache; click to select or delete
+- PDF multi-page expand - Left panel shows PDF as parent + N child items with thumbnails
+- PDF global cross-page preview - All pages' crop boxes in one view, grouped by page, cross-page select/delete
+- Crop box rotation - 90 degrees clockwise/counter-clockwise from the floating toolbar
+- Single View - Side-by-side: original thumbnail + extracted full-size image with page navigation
+- Batch export - JPEG/PNG/TIFF, quality, max dimensions, filename template, auto-rotation, white-border trimming
+- Template system - Percentage-based crop templates that work across different images
+- Sync & Transform - Sync crop dimensions across selections; flip horizontal/vertical
+- Smart export - Auto-rotation correction, white-border trimming, EXIF metadata
+- Light/Dark theme - 350ms cubic-bezier color transition animation
+- Toast notifications - Non-modal slide-in, max 3 stacked
+- Drag & drop import - Drag files onto canvas, supports 8 file formats
+- Undo/Redo - Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
+- Multi-select - Ctrl+Click, Ctrl+A, Tab/Shift+Tab, Esc
+- Keyboard shortcuts - Ctrl+O load, Ctrl+D detect, Ctrl+E export, arrow keys for pages
+- User config - `~/.config/photocrop/config.yaml` for persistent preferences
+
+</details>
+
+---
+
+<details>
+<summary><h2 style="display:inline">Architecture</h2></summary>
 
 ```
 photocrop/
   ├── main.py              CLI / --gui / --pdf entry point
-  ├── config.py            User config system (~/.config/photocrop/config.yaml)
+  ├── config.py            User config system
   │
   ├── engine/              Detection pipeline
   │   ├── detector_base.py     ABC for pluggable detectors
   │   ├── cv_detector.py       Traditional CV wrapper
-  │   ├── cv_algorithm.py      Core CV algorithm (scene classification + photo detection)
+  │   ├── cv_algorithm.py      Core CV algorithm
   │   ├── enhanced_cv_detector.py
   │   ├── combined_detector.py IoU voting fusion
-  │   ├── yolo_world_detector.py  YOLO-World zero-shot (async loading)
+  │   ├── yolo_world_detector.py  YOLO-World (async loading)
   │   ├── model_detector.py    Placeholder for vision API detectors
-  │   ├── core.py              Orchestration + factory (cached)
+  │   ├── core.py              Orchestration + factory
   │   ├── filters.py           Small-box filtering, IoU dedup, count limiting
   │   └── rotation_estimator.py  Rotation angle estimation
   │
-  ├── ui/                  PySide6 GUI (B&W minimal design)
-  │   ├── main_window.py       Toolbar + status bar + shortcuts + multi-image session
-  │   ├── canvas.py            Canvas with interactive crop boxes + undo/redo + sync/flip + drag & drop
-  │   ├── crop_item.py         Editable crop region widget (rotation, handles, floating toolbar, aspect lock)
-  │   ├── state.py             AppState global state manager + SessionState data class
-  │   ├── theme.py             ThemeManager singleton (Light/Dark) + 350ms transition animation
-  │   ├── toast.py             Toast notification component (non-modal, stacked)
-  │   ├── press_button.py      PressButton with scale(0.97) press animation
-  │   ├── undo_manager.py      Undo/redo state management (serializable, full dual-stack)
-  │   ├── session.py           ImageSession data class for per-image state
-  │   ├── styled_dropdown.py   Custom dropdown components (StyledDropdown + LightDropdown)
-  │   ├── image_list_panel.py  Left panel: thumbnails + filenames + crop counts
-  │   ├── crop_options_panel.py Right panel: Width/Height/X/Y/Rotation/Aspect Ratio
-  │   ├── extracted_images_panel.py Crop result preview (2-column grid + LRU cache)
-  │   ├── single_view_panel.py Single View: thumbnail + full-size preview
-  │   ├── export_dialog.py     Batch export settings dialog (form validation + QSettings)
-  │   ├── template_manager.py  Crop template manager (percentage coordinates)
-  │   ├── icons.py             SVG icon loader (22 icons, runtime color injection + cache)
-  │   ├── utils.py             PIL <-> Qt image conversion (pil_to_qimage / pil_to_pixmap)
-  │   └── controllers/         Business logic layer (decoupled from Qt widgets)
-  │       ├── detection_controller.py  Detection flow (single + batch PDF, QThreadPool)
-  │       ├── export_controller.py     Export flow (template fill, progress signals)
-  │       ├── session_controller.py    Session lifecycle (load, switch, save/restore)
-  │       ├── theme_controller.py      Theme switching (subscriber pattern)
-  │       └── view_coordinator.py      View transitions (Empty/Grid/Single, opacity animation)
+  ├── ui/                  PySide6 GUI
+  │   ├── main_window.py       Toolbar + status bar + shortcuts
+  │   ├── canvas.py            Canvas + interactive crop boxes + drag & drop
+  │   ├── crop_item.py         Crop region widget (rotation, handles, toolbar, aspect lock)
+  │   ├── state.py             AppState global state manager
+  │   ├── theme.py             ThemeManager (Light/Dark + transition animation)
+  │   ├── toast.py             Toast notifications
+  │   ├── press_button.py      Press animation button
+  │   ├── undo_manager.py      Undo/redo (full dual-stack)
+  │   ├── session.py           Per-image session data class
+  │   ├── styled_dropdown.py   Custom dropdown components
+  │   ├── image_list_panel.py  Left panel: image list
+  │   ├── crop_options_panel.py Right panel: crop properties
+  │   ├── extracted_images_panel.py Crop result preview
+  │   ├── single_view_panel.py Single View large preview
+  │   ├── export_dialog.py     Batch export dialog
+  │   ├── template_manager.py  Crop template manager
+  │   ├── icons.py             SVG icon loader
+  │   ├── utils.py             PIL <-> Qt image conversion
+  │   └── controllers/         Business logic layer
+  │       ├── detection_controller.py
+  │       ├── export_controller.py
+  │       ├── session_controller.py
+  │       ├── theme_controller.py
+  │       └── view_coordinator.py
   │
   ├── export/              Output layer
   │   ├── cropper.py       Crop -> rotate -> trim -> save
-  │   └── pdf_reader.py    PDF -> PIL Image conversion
+  │   └── pdf_reader.py    PDF -> PIL Image
   │
   └── utils/               Shared utilities
-      ├── crop_rect.py     CropRect data class (center coordinate system)
+      ├── crop_rect.py     CropRect data class
       ├── iou.py           Intersection-over-Union
       └── rotation.py      Angle normalization
 ```
@@ -201,6 +228,8 @@ class MyDetector(BaseDetector):
         ...
 rects = detect_rectangles(img, detector=MyDetector())
 ```
+
+</details>
 
 ---
 
