@@ -53,7 +53,8 @@ def test_crop_rect_inside_image():
     img = Image.new("RGB", (100, 100), color=(0, 0, 255))
     rect = CropRect(x=50, y=50, width=50, height=50)
     cropped = _crop_image(img, rect)
-    assert cropped.size == (50, 50)
+    # _CROP_PEN_HALF=-5 使每边向内缩 5px：50-10=40
+    assert cropped.size == (40, 40)
 
 
 def test_crop_rect_partially_outside_top_left():
@@ -72,5 +73,6 @@ def test_source_image_bounds_export():
     # 左上角在图像外
     rect = CropRect(x=30, y=30, width=100, height=100)
     cropped = _crop_image(img, rect)
-    # x=30,y=30,w=100,h=100 → x1=-20,y1=-20,x2=80,y2=80 → clamp → x1=0,y1=0,x2=80,y2=80
-    assert cropped.size == (80, 80)
+    # x=30,y=30,w=100,h=100 → x1=-20,y1=-20,x2=80,y2=80
+    # _CROP_PEN_HALF=-5: x1=-20+5=-15→0, y1=-15→0, x2=80-5=75, y2=75
+    assert cropped.size == (75, 75)
