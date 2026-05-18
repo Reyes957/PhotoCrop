@@ -18,9 +18,9 @@ from __future__ import annotations
     必须逐个处理，禁止批量占用
 """
 
+import math
 from pathlib import Path
 
-import math
 import numpy as np
 from PIL import Image
 
@@ -213,7 +213,7 @@ def _rotate_and_crop(source_img: Image.Image, rect: CropRect) -> Image.Image:
     bbox_y2 = min(img_h, int(max(ys)) + 10)
 
     if bbox_x2 <= bbox_x1 or bbox_y2 <= bbox_y1:
-        raise ValueError(f"旋转裁剪区域无效")
+        raise ValueError("旋转裁剪区域无效")
 
     # 裁出包围盒区域
     cropped = source_img.crop((bbox_x1, bbox_y1, bbox_x2, bbox_y2))
@@ -239,7 +239,7 @@ def _rotate_and_crop(source_img: Image.Image, rect: CropRect) -> Image.Image:
     final_y2 = min(rotated.height, int(rcy + hh))
 
     if final_x2 <= final_x1 or final_y2 <= final_y1:
-        raise ValueError(f"旋转裁剪区域无效")
+        raise ValueError("旋转裁剪区域无效")
 
     return rotated.crop((final_x1, final_y1, final_x2, final_y2))
 
