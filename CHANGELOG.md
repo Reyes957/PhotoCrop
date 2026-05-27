@@ -1,5 +1,77 @@
 # Changelog
 
+## v0.8.0 — 正式里程碑版本（2026-05-27）
+
+自 v0.3.1 以来的首个正式 Release。经历了完整的架构重构、UI 重设计、121+ bug 修复，从原型级工具蜕变为可日常使用的桌面应用。
+
+### 架构
+
+- **控制器层** — 5 个控制器（Detection / Export / Session / Theme / View）将业务逻辑从 MainWindow 中剥离，职责单一、可独立测试
+- **AppState 全局状态** — Observable 状态容器，所有 UI 组件和 Controller 通过信号订阅数据变化
+- **检测器 ABC + 工厂** — BaseDetector 抽象基类 + `get_detector()` 工厂（模块级缓存），支持 CV / Enhanced CV / Combined / YOLO-World / Model 五种检测器
+- **IoU 投票融合** — CombinedDetector 从简单并集改为双检测器交叉验证策略
+
+### UI 系统
+
+- **Light / Dark 双主题** — ThemeManager 单例，18 个颜色 token + `generate_stylesheet()` 全局 QSS + 350ms cubic-bezier 颜色过渡动画
+- **SVG 图标系统** — 11 个 SVG 图标 + `get_icon()` 运行时颜色注入，消除 emoji tofu / 黑方块箭头
+- **StyledDropdown 自定义下拉** — 纯 QWidget 实现，反色选中态 + SVG 箭头动画 + QBitmap 圆角窗口遮罩
+- **CropItem 裁剪框重构** — 工具栏移入框内 + 实心蓝色圆点手柄 + 整条边线触发 + 选中框光晕呼吸脉动 + 旋转圆点手柄
+- **旋转裁剪全链路** — 四角映射裁剪算法 + 场景坐标拖动跟手 + 旋转方向直觉化 + 吸附容差 0.5°
+
+### 功能
+
+- **多图像管理** — 左侧面板缩略图 + 文件名 + 裁剪计数，右键菜单
+- **PDF 全局跨页预览** — 全局模式显示所有页面裁剪框，按 Page 分组，跨页点击选中/删除
+- **批量导出** — 格式（JPEG/PNG/TIFF）+ 质量 + 尺寸限制 + 文件名模板 + QSettings 持久化
+- **Single View** — 双栏布局（左原图缩略 + 右提取大图），实时响应裁剪框调整
+- **裁剪框属性面板** — Width/Height/X/Y/Rotation/Aspect Ratio 实时编辑
+- **模板系统** — 百分比坐标存储，跨图片复用
+- **撤销 / 重做** — 完整双栈序列化/反序列化，Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
+- **拖拽导入** — 支持 8 种文件格式，半透明遮罩 + 虚线框反馈
+- **Toast 通知** — 非模态滑入通知，最多 3 个堆叠
+- **用户配置** — `~/.config/photocrop/config.yaml`
+- **YOLO-World 异步加载** — `load_async()` 后台线程预加载模型
+
+### 本次新增（v0.7.4 → v0.8.0）
+
+**v0.7.4 — 裁剪框 UI 重构**
+- 工具栏从裁剪框外部上方移入内部右上角（8px 内边距）
+- 8 个方向手柄从空心方块改为实心蓝色圆点（r=14, hover=18）
+- 四边触发从「仅中点」改为「整条边线」
+- 旋转抓取手柄改为实心蓝色圆点，连接线样式跟随选框状态
+- 角度文字在圆点右侧显示，11pt Medium 灰色
+
+**v0.7.5 — 旋转裁剪全链路修复**
+- `_rotate_and_crop` 重写：计算旋转矩形四角→包围盒→裁出→反向旋转→最终裁剪
+- 预览禁用 `auto_rotate`：预览/缩略图用 `auto_rotate=False, trim_white=False`
+- BODY 拖动全程场景坐标：消除旋转后坐标系偏差
+- 旋转方向直觉化：`atan2(-dy,-dx)-90`，鼠标往哪拖框就跟往哪转
+- 吸附容差 ±15° → ±0.5°
+- Single View 响应裁剪框实时调整
+- 提取面板缩略图缓存即时更新
+
+**v0.8.0 — 质量打磨**
+- 测试期望值适配 `_CROP_PEN_HALF` 偏移
+- 全项目 ruff lint 清理（import 排序 + 未使用变量）
+- README 重构（故事开头、目录导航、截图、徽章、折叠长内容）
+
+### 质量
+
+- **121+ bug 修复** — 从裁剪框引用泄漏到旋转裁剪全链路，覆盖 UI / 引擎 / 导出 / PDF / Session 全模块
+- **184+ 测试通过** — CropRect / UndoManager / 手柄检测 / 模板填充 / AppState / Controller / Engine / Export / Theme 全覆盖
+- **CI/CD** — GitHub Actions（Python 3.9-3.12 + ruff + pytest）
+- **类型检查** — mypy 配置 + ruff（E/F/W/I/UP/B 规则）
+
+### 安装
+
+```bash
+pip install -e ".[gui]"     # 推荐（GUI 依赖）
+pip install -e ".[all]"     # 全量（含 YOLO-World）
+```
+
+---
+
 ## v0.7.1 — 自定义下拉组件 + UI 精调（2026-05-15）
 
 ### 新增文件

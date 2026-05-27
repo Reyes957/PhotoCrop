@@ -25,7 +25,11 @@ Twenty years, gone like a dream.
 
 If you're around my age, you're probably working now. Your office has a scanner. Take those old albums, run them through, make a PDF of the past. And those Polaroids - they have no digital version. Just the one paper copy.
 
-I wanted to turn them into digital memories. That's why I built this.
+I wanted to turn them into digital memories.
+
+My first thought was to use AI for this. Feed the scanned PDF into some model, have it find and crop each photo automatically. But the real world is messier than a dataset. Some of the old film was glued to the album paper - couldn't peel it off without tearing, so the scan picked up scraps of the page along with the photo. Others had sat at the edges of the album for decades; the edges had corroded, the image faded into nothing. And some photos were overexposed to begin with - a washed-out face on a white page, where even a human has to squint to tell where the photo ends and the background begins. AI couldn't handle any of that reliably.
+
+So I wrote PhotoCrop instead.
 
 I was PhotoCrop's first user. The reason I made it - the reason I code at all - is to turn those memories into something that can flow through chats, travel across hard drives, live on in data. Not to let old albums slowly rot in a cabinet until everyone in the photos is gone, until the person who owns the album no longer recognizes the faces inside, and throws it away.
 
