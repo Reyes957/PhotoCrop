@@ -17,9 +17,12 @@ v0.7.0: 架构重构 — 业务逻辑与 Qt 解耦 + 全局状态管理 + 123 �
 v0.7.1: StyledDropdown/LightDropdown 自定义下拉组件 + 默认检测器 enhanced-cv + 提取面板精调
 v0.7.2: CropItem 裁剪框边框修复 — ItemClipsToShape 裁剪框线修复 + 加粗虚线 + 选中框呼吸脉动
 v0.7.3: 旋转手柄重构 — 84px toolbar 风格 + SVG 图标放大（工具栏/旋转手柄 UI 统一）
+v0.7.4: 裁剪框 UI 重构 — 工具栏移入框内 + 圆点手柄 + 整线触发 + 旋转圆点跟随样式
+v0.7.5: 旋转裁剪全链路修复 — 四角映射裁剪 + 拖动跟手 + 预览同步 + 吸附容差优化
+v0.8.0: 正式里程碑版本 — 121+ bug 修复 + 双主题 + 控制器架构 + 自定义组件 + 质量打磨
 """
 
-__version__ = "0.7.4"
+__version__ = "0.8.0"
 
 from photocrop.utils.crop_rect import CropRect
 
